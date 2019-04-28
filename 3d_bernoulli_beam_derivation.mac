@@ -1,0 +1,303 @@
+/* Copyright 2019, Jens Geisler
+ * 
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ * 
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
+
+/* Equation numbers refer to
+ * Sharf, Inna. (1996). Geometrically non-linear beam element for dynamics of multibody systems. International Journal for Numerical Methods in Engineering. 39. 763 - 786. 10.1002/(SICI)1097-0207(19960315)39:5<763::AID-NME879>3.0.CO;2-X. */
+
+/* Eq (3) */
+u_deform(U0):= block([u0, v0, w0, phi0], u0: U0[1, 1], v0: U0[2, 1], w0: U0[3, 1], phi0: U0[4, 1], u0 - y*diff(v0, x) - z*diff(w0, x));
+v_deform(U0):= block([u0, v0, w0, phi0], u0: U0[1, 1], v0: U0[2, 1], w0: U0[3, 1], phi0: U0[4, 1], v0 - z*phi0);
+w_deform(U0):= block([u0, v0, w0, phi0], u0: U0[1, 1], v0: U0[2, 1], w0: U0[3, 1], phi0: U0[4, 1], w0 + y*phi0);
+
+/* Eq (8) */
+N1(zeta):= 1 - zeta;
+N2(zeta):= zeta;
+N3(zeta):= 1 - 3*zeta^2 + 2*zeta^3;
+N4(zeta):= -le*(zeta - 2*zeta^2 + zeta^3);
+N5(zeta):= 3*zeta^2 - 2*zeta^3;
+N6(zeta):= -le*(-zeta^2 + zeta^3);
+/*                 ux1,      uy1,      uz1,      rx1,      ry1,      rz1,       ux2,      uy2,      uz2,      rx2,      ry2      rz2                  */
+N_e(zeta):= matrix([N1(zeta), 0,        0,        0,        0,        0,         N2(zeta), 0,        0,        0,        0,       0],
+                  [0,        N3(zeta), 0,        0,        0,        -N4(zeta), 0,        N5(zeta), 0,        0,        0,       -N6(zeta)],
+                  [0,        0,        N3(zeta), 0,        N4(zeta), 0,         0,        0,        N5(zeta), 0,        N6(zeta), 0],
+                  [0,        0,        0,        N1(zeta), 0,        0,         0,        0,        0,        N2(zeta), 0,        0]
+                 );
+    
+/* Eq (6) */
+Psi_e: matrix(makelist(u_deform(col(N_e(x/le), i)), i, 1, 12),
+              makelist(v_deform(col(N_e(x/le), i)), i, 1, 12),
+              makelist(w_deform(col(N_e(x/le), i)), i, 1, 12)
+              );
+
+/* Eq (7) */
+qe: transpose(matrix([ux1, uy1, uz1, rx1, ry1, rz1, ux2, uy2, uz2, rx2, ry2, rz2]));
+
+/* Eq (4) */
+u_e: Psi_e . qe;
+
+/* Eq (10) */
+/* eps_xx(u_e):= block([u, v, w], u: u_e[1, 1], v: u_e[2, 1], w: u_e[3, 1], diff(u, x) + 1/2*(diff(u, x)^2 + diff(v, x)^2 + diff(w, x)^2)); */
+/* Eq (14) */
+eps_xx(U):= block([u, v, w], u: U[1, 1], v: U[2, 1], w: U[3, 1], diff(u, x) + 1/2*(diff(v, x)^2 + diff(w, x)^2) );
+
+/* Eq (12) */
+eps_xy(U):= block([u, v, w], u: U[1, 1], v: U[2, 1], w: U[3, 1], 1/2*(diff(u, y) + diff(v, x) + diff(u, x)*diff(u, y) + diff(w, x)*diff(w, y)) );
+eps_xz(U):= block([u, v, w], u: U[1, 1], v: U[2, 1], w: U[3, 1], 1/2*(diff(u, z) + diff(w, x) + diff(u, x)*diff(u, z) + diff(v, x)*diff(v, z)) );
+
+
+/* Eq (13), (15) */
+depends(u0, x);
+depends(v0, x);
+depends(w0, x);
+depends(phi0, x);
+
+U0: transpose(matrix([u0, v0, w0, phi0]));
+U_deform: transpose(matrix([u_deform(U0), v_deform(U0), w_deform(U0)]));
+eps_xx0: eps_xx(U_deform);
+eps_xy0: eps_xy(U_deform);
+eps_xz0: eps_xz(U_deform);
+
+/* Eq (26) */
+depends(u, [x, y, z]);
+depends(v, [x, y, z]);
+depends(w, [x, y, z]);
+U: transpose(matrix([u, v, w]));
+
+eps_xx2: expand(eps_xx(U)^2);
+A1: part(eps_xx2, 6);
+A3: 4*part(eps_xx2, 4);
+A4: 4*part(eps_xx2, 1);
+A7: 4*part(eps_xx2, 2);
+A9: part(eps_xx2, 5);
+A10: part(eps_xx2, 3);
+/* expand(A1 + 1/4*(A3 + A4 + A7) + A9 + A10 - eps_xx2); */
+
+A1_0: subst([u=U_deform[1, 1], v=U_deform[2, 1], w=U_deform[3, 1]], A1);
+A1_0: A1_0, diff, expand;
+A3_0: subst([u=U_deform[1, 1], v=U_deform[2, 1], w=U_deform[3, 1]], A3);
+A3_0: A3_0, diff, expand;
+A4_0: subst([u=U_deform[1, 1], v=U_deform[2, 1], w=U_deform[3, 1]], A4);
+A4_0: A4_0, diff, expand;
+A7_0: subst([u=U_deform[1, 1], v=U_deform[2, 1], w=U_deform[3, 1]], A7);
+A7_0: A7_0, diff, expand;
+A9_0: subst([u=U_deform[1, 1], v=U_deform[2, 1], w=U_deform[3, 1]], A9);
+A9_0: A9_0, diff, expand;
+A10_0: subst([u=U_deform[1, 1], v=U_deform[2, 1], w=U_deform[3, 1]], A10);
+A10_0: A10_0, diff, expand;
+
+/* Eq (30) */
+subst_area_int(f):= block([f_],
+                          f_: f,
+                          f_: ratsubst(I4y, integrate(integrate(z^4, y), z), f_),
+                          f_: ratsubst(I4z, integrate(integrate(y^4, y), z), f_),
+                          f_: ratsubst(I4yz, integrate(integrate(y^2*z^2, y), z), f_),
+                          f_: ratsubst(0, integrate(integrate(z^3, y), z), f_),
+                          f_: ratsubst(0, integrate(integrate(y^3, y), z), f_),
+                          f_: ratsubst(0, integrate(integrate(y*z^2, y), z), f_),
+                          f_: ratsubst(0, integrate(integrate(y^2*z, y), z), f_),
+                          f_: ratsubst(Iy, integrate(integrate(z^2, y), z), f_),
+                          f_: ratsubst(Iz, integrate(integrate(y^2, y), z), f_),
+                          f_: ratsubst(0, integrate(integrate(y*z, y), z), f_),
+                          f_: ratsubst(0, integrate(integrate(y, y), z), f_),
+                          f_: ratsubst(0, integrate(integrate(z, y), z), f_),
+                          f_: ratsubst(A, integrate(integrate(1, y), z), f_),
+                          f_: ratsubst(0, I4z*diff(phi0, x)^4, f_), /* see Eq (32) */
+                          f_: ratsubst(0, I4y*diff(phi0, x)^4, f_), /* see Eq (32) */
+                          f_: ratsubst(0, I4yz*diff(phi0, x)^4, f_), /* see Eq (32) */
+                          f_: subst(phi0(x), phi0, f_), 
+                          f_
+                    );
+
+load(functs);
+assume(le>0);
+U_A1: expand(E/2*map(lambda([f], integrate(f, x, 0, le)), subst_area_int(integrate(integrate(A1_0, y), z))));
+U_A3: expand(1/4 * E/2*map(lambda([f], integrate(f, x, 0, le)), subst_area_int(integrate(integrate(A3_0, y), z))));
+U_A3: part(U_A3, 2);
+U_A4: expand(1/4 * E/2*map(lambda([f], integrate(f, x, 0, le)), subst_area_int(integrate(integrate(A4_0, y), z))));
+U_A4: part(U_A4, 2);
+U_A7: expand(1/4 * E/2*map(lambda([f], integrate(f, x, 0, le)), expand(subst_area_int(integrate(integrate(A7_0, y), z)))));
+U_A7: part(U_A7, 3);
+U_A9: expand(E/2*map(lambda([f], integrate(f, x, 0, le)), expand(subst_area_int(integrate(integrate(A9_0, y), z)))));
+U_A9: part(U_A9, 3);
+U_A10: expand(E/2*map(lambda([f], integrate(f, x, 0, le)), expand(subst_area_int(integrate(integrate(A10_0, y), z)))));
+U_A10: part(U_A10, 3);
+
+/* Eq (31) */
+U_A: U_A1 + U_A3 + U_A4 + U_A7 + U_A9 + U_A10;
+
+/* Eq (33) */
+eps_xy2: expand(eps_xy(U)^2);
+
+/* Eq (34) */
+simplyfy_eps_xy(eps):= block([eps_],
+                                eps_: eps,
+                                eps_: ratsubst(-z*diff(phi0, x), diff(u, y)+diff(v, x), eps_),
+                                eps_: ratsubst(phi0, diff(w, y), eps_),
+                                eps_: ratsubst(-diff(v0, x), diff(u, y), eps_),
+                                eps_
+                          );
+
+simplyfy_eps_xz(eps):= block([eps_],
+                                eps_: eps,
+                                eps_: ratsubst(-y*diff(phi0, x), diff(u, z)+diff(w, x), eps_),
+                                eps_: ratsubst(phi0, diff(v, z), eps_),
+                                eps_: ratsubst(diff(w0, x), diff(u, z), eps_),
+                                eps_
+);
+/* Eq (35) */
+eps_xy2: expand(simplyfy_eps_xy(eps_xy2));
+
+/* Eq (36) */
+eps_xz2: expand(simplyfy_eps_xz(expand(eps_xz(U)^2)));
+
+/* Eq (37) */
+eps_xy_xz2: expand(eps_xy2 + eps_xz2);
+
+/* Eq (39) */
+S1: 4*(part(eps_xy2, 1) + part(eps_xz2, 1));
+S2: 4*(part(eps_xy2, 6) + part(eps_xz2, 4));
+S3: 4*(part(eps_xy2, 4) + part(eps_xz2, 6));
+S4: 4*(part(eps_xy2, 3) + part(eps_xz2, 2));
+S5: 4*(part(eps_xy2, 2) + part(eps_xz2, 3));
+S6: 4*(part(eps_xy2, 5) + part(eps_xz2, 5));
+/* expand(S1 + S2 + S3 + S4 + S5 + S6 - eps_xy2 - eps_xz2); */
+
+S1_0: subst([u=U_deform[1, 1], v=U_deform[2, 1], w=U_deform[3, 1]], S1);
+S1_0: S1_0, diff, expand;
+S1_0: factor(S1_0);
+S2_0: subst([u=U_deform[1, 1], v=U_deform[2, 1], w=U_deform[3, 1]], S2);
+S2_0: S2_0, diff, expand;
+S2_0: factor(S2_0);
+S3_0: subst([u=U_deform[1, 1], v=U_deform[2, 1], w=U_deform[3, 1]], S3);
+S3_0: S3_0, diff, expand;
+S3_0: factor(S3_0);
+S4_0: subst([u=U_deform[1, 1], v=U_deform[2, 1], w=U_deform[3, 1]], S4);
+S4_0: S4_0, diff, expand;
+S4_0: factor(S4_0);
+S5_0: subst([u=U_deform[1, 1], v=U_deform[2, 1], w=U_deform[3, 1]], S5);
+S5_0: S5_0, diff, expand;
+S5_0: factor(S5_0);
+S6_0: subst([u=U_deform[1, 1], v=U_deform[2, 1], w=U_deform[3, 1]], S6);
+S6_0: S6_0, diff, expand;
+S6_0: factor(S6_0);
+
+/* Eq (40) */
+U_S1: ratsubst(Ip, Iy+Iz, G/2*integrate(subst_area_int(integrate(integrate(S1_0, y), z)), x, 0, le));
+U_S2: U_S2: G/2*integrate(factor(subst_area_int(integrate(integrate(S2_0, y), z))), x);
+U_S3: ratsubst(Ip, Iy+Iz, G/2*map(lambda([f], integrate(f, x)), subst_area_int(integrate(integrate(S3_0, y), z))));
+U_S4: expand(G/2*map(lambda([f], integrate(f, x)), subst_area_int(integrate(integrate(S4_0, y), z))));
+U_S5: subst_area_int(integrate(integrate(S5_0, y), z));
+U_S6: expand(G/2*map(lambda([f], integrate(f, x)), subst_area_int(integrate(integrate(S6_0, y), z))));
+
+/* Eq (41) */
+U_L: U_A1 + U_S1;
+U_G: factor(U_A9 + U_A10);
+U_B: factor(U_A3 + U_A4 + U_A7);
+
+U: U_L + U_G + U_B;
+
+u_ax: N_e(x/le) . qe;
+U_Le: subst([u0=u_ax[1, 1], v0=u_ax[2, 1], w0=u_ax[3, 1], phi0(x)=u_ax[4, 1]], U_L);
+U_Le: U_Le, diff, nouns;
+
+S_L: transpose(jacobian([U_Le], flatten(args(qe))));
+K_L: hessian(U_Le, flatten(args(qe)));
+printf(true, "K_L= ~a~%", ssubst("];[", "],[", string(args(K_L))))$
+
+/* (transpose(qe) . K_L . qe)/2 - U_Le;*/
+
+/* Eq (42) */
+U_Ge: subst([u0=u_ax[1, 1], v0=u_ax[2, 1], w0=u_ax[3, 1], phi0(x)=u_ax[4, 1]], U_G);
+U_Ge: U_Ge, diff, nouns;
+
+S_G: transpose(jacobian([U_Ge], flatten(args(qe))));
+S_G2: ratsubst(0, ux2, ratsubst(0, ux1, S_G));
+S_G1: S_G - S_G2;
+S_G1: E*A*(ux2-ux1)/le * ratsimp(S_G1/(E*A*(ux2-ux1)/le));
+
+/* Eq (44) */
+K_G1: P*jacobian(flatten(args(ratsimp(S_G1/(E*A*(ux2-ux1)/le)))), flatten(args(qe)));
+/* (5.212) S. 223 */
+K_hat_sigma: jacobian(flatten(args(ratsimp(S_G1/(E*A*(ux2-ux1)/le)))), flatten(args(qe)));
+/* K_G1: (E*A*(ux2-ux1)/le)*K_hat_sigm; */
+/* ratsimp((E*A*(ux2-ux1)/le)*K_hat_sigma . qe - S_G1); */
+
+/* Eq (47) K_G= sum(K_G[i]*q[i], i, 1, 12) */
+K_G: makelist(zeromatrix(12, 12), i, 1, 12);
+for i: 1 thru 12 do
+    for j: 1 thru 12 do
+        for k: 1 thru 12 do
+            K_G[k][i, j]: diff(S_G[i, 1], qe[j, 1], 1, qe[k, 1], 1);
+
+/* Eq (49), (50) */ 
+ /* K_G_: zeromatrix(12, 12);  for i: 1 thru 12 do K_G_: K_G_ + K_G[i]*qe[i, 1];
+ratsimp(1/2*K_G_ . qe - S_G);
+ratsimp((K_G[1]*ux1 + K_G[7]*ux2).qe - S_G1);
+ratsimp(K_G[1]*ux1 + K_G[7]*ux2 - (E*A*(ux2-ux1)/le)*K_hat_sigma);
+ratsimp((1/2*K_G_ - (K_G[1]*ux1 + K_G[7]*ux2)).qe - S_G2);
+ratsimp(1/6*transpose(qe) . K_G_ . qe - U_Ge); */
+/*
+ * S_G1 = 2*S_G in case there is no bending defelction but in that case there are no bending forces or moments either so it doesn't matter.
+ * In case of bending deflections, i.e. when the stiffening really applies, the forces and moments from 1/2*K_G.qe and K_G1.qe are equal. The difference is that in K_G(q).q (note that the q in parenthesis and the factor q are always the same) the bending state must be already known when K_G is calculated while K_G1 achieves the same and only need the bending state in the multipiled q. In this regard K_G1 is a bit "more linear" than K_G and thus more suitable for stiffening caused by a longitudinal force but no specifically known bending state. In case the beam shall be pre-bent, K_G (plus K_B) is definately more suitable.
+ * subst([le=1], [1/2*factor((K_G[7]+K_G[8]).transpose(matrix([0, 0, 0, 0, 0, 0, 1 , 1, 0, 0, 0, 0]))), (E*A*(1)/le)*K_hat_sigma . transpose(matrix([0, 0, 0, 0, 0, 0, 1 , 1, 0, 0, 0, 0]))]);
+ * */
+printf(true, "K_Ge_ux1= ~a~%", ssubst("];[", "],[", string(args(K_G[1]))))$
+printf(true, "K_Ge_ux2= ~a~%", ssubst("];[", "],[", string(args(K_G[7]))))$
+
+/* Eq (51) */
+/*U_Be: subst([u0=u_ax[1, 1], v0=u_ax[2, 1], w0=u_ax[3, 1], phi0(x)=u_ax[4, 1]], U_B);
+U_Be: U_Be, diff, nouns;
+
+S_B: transpose(jacobian([U_Be], flatten(args(qe))));
+*/
+/* Eq (52) */
+/*
+K_B: makelist(makelist(zeromatrix(12, 12), i, 1, 12), j, 1, 12);
+for i: 1 thru 12 do
+    for j: 1 thru 12 do
+        for k: 1 thru 12 do
+            for l: 1 thru 12 do
+                K_B[l][k][i, j]: diff(S_B[i, 1], qe[j, 1], 1, qe[k, 1], 1, qe[l, 1], 1);
+*/            
+/* Eq (53) */
+/* K_B_: zeromatrix(12, 12);  for i: 1 thru 12 do for j: 1 thru 12 do K_B_: K_B_ + K_B[j][i]*qe[i, 1]*qe[j, 1]$
+ * K_S: K_L + 1/2*K_G_ + 1/6*K_B_$
+ * U_e: subst([u0=u_ax[1, 1], v0=u_ax[2, 1], w0=u_ax[3, 1], phi0(x)=u_ax[4, 1]], U)$
+ * U_e: U_e, diff, nouns$
+ * S: transpose(jacobian([U_e], flatten(args(qe))))$
+ * ratsimp(K_S . qe - S);
+ * ratsimp(transpose(qe) . (1/2*K_L + 1/6*K_G_ + 1/24*K_B_) . qe - U_e); */
+        
+/* Eq (59) */
+/* K_T: K_L + K_G_ + 1/2*K_B_; */
+
+/* From "Dynamik Flexibler Mehrkörpersysteme" */
+/* Daten ab S. 344 */
+
+/* (5.153) S. 207, (6.235) S.  */
+M_e: me*integrate(transpose(N_e(zeta)).N_e(zeta), zeta, 0, 1);
+printf(true, "Me= ~a~%", ssubst("];[", "],[", string(args(M_e))))$
+
+/* (5.165) S. 209 */
+C1_e: me/le*integrate(submatrix(4, N_e(x1/le)), x1, 0, le);
+printf(true, "C1e= ~a~%", ssubst("];[", "],[", string(args(C1_e))))$
+
+/* (5.248) S. 232 */
+for i: 1 thru 3 do
+    for j: 1 thru 3 do (
+        C3_e_ab: me/le*integrate(transpose(row(N_e(x1/le), i)).row(N_e(x1/le), j), x1, 0, le),
+        printf(true, "C3e{~d,~d}= ~a~%", i, j, ssubst("];[", "],[", string(args(C3_e_ab))))
+    );
