@@ -1,0 +1,70 @@
+/* Copyright 2019, Jens Geisler
+ * 
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ * 
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
+
+/* linear interpolated versions */
+kill(A1);
+A_lin(zeta):= A0*N1(zeta) + A1*N2(zeta);
+Iy_lin(zeta):= Iy0*N1(zeta) + Iy1*N2(zeta);
+Iz_lin(zeta):= Iz0*N1(zeta) + Iz1*N2(zeta);
+Ip_lin(zeta):= Ip0*N1(zeta) + Ip1*N2(zeta);
+subst_lin(f):= block([f_],
+                     f_: f,
+                     f_: ratsubst(A_lin(x/le), A, f_),
+                     f_: ratsubst(Iy_lin(x/le), Iy, f_),
+                     f_: ratsubst(Iz_lin(x/le), Iz, f_),
+                     f_: ratsubst(Ip_lin(x/le), Ip, f_),
+                     f_
+               );
+
+U_A1_lin: expand(E/2*map(lambda([f], integrate(f, x, 0, le)), subst_lin(subst_area_int(integrate(integrate(A1_0, y), z)))));
+U_S1_lin: G/2*integrate(subst_lin(ratsubst(Ip, Iy+Iz, subst_area_int(integrate(integrate(S1_0, y), z)))), x, 0, le);
+U_L_lin: U_A1_lin + U_S1_lin;
+U_Le_lin: subst([u0=u_ax[1, 1], v0=u_ax[2, 1], w0=u_ax[3, 1], phi0(x)=u_ax[4, 1]], U_L_lin);
+U_Le_lin: U_Le_lin, diff, nouns;
+U_Le_lin: U_Le_lin, nouns;
+
+K_L_lin: hessian(U_Le_lin, flatten(args(qe)));
+printf(true, "K_L_lin= ~a~%", ssubst("];[", "],[", string(args(K_L_lin))))$
+
+U_A9_lin: expand(E/2*map(lambda([f], integrate(f, x, 0, le)), expand(subst_lin(subst_area_int(integrate(integrate(A9_0, y), z))))));
+U_A9_lin: part(U_A9_lin, [7, 8, 9]);
+U_A10_lin: expand(E/2*map(lambda([f], integrate(f, x, 0, le)), expand(subst_lin(subst_area_int(integrate(integrate(A10_0, y), z))))));
+U_A10_lin: part(U_A10_lin, [7, 8, 9]);
+U_G_lin: factor(U_A9_lin + U_A10_lin);
+U_Ge_lin: subst([u0=u_ax[1, 1], v0=u_ax[2, 1], w0=u_ax[3, 1], phi0(x)=u_ax[4, 1]], U_G_lin);
+U_Ge_lin: U_Ge_lin, diff, nouns;
+S_G_lin: transpose(jacobian([U_Ge_lin], flatten(args(qe))));
+K_G_lin: makelist(zeromatrix(12, 12), i, 1, 12);
+for i: 1 thru 12 do
+    for j: 1 thru 12 do
+        for k: 1 thru 12 do
+            K_G_lin[k][i, j]: diff(S_G_lin[i, 1], qe[j, 1], 1, qe[k, 1], 1);
+        
+printf(true, "K_Ge_ux1_lin= ~a~%", ssubst("];[", "],[", string(args(K_G_lin[1]))))$
+printf(true, "K_Ge_ux2_lin= ~a~%", ssubst("];[", "],[", string(args(K_G_lin[7]))))$
+
+me_lin(zeta):= me0*N1(zeta) + me1*N2(zeta);
+M_e_lin: integrate(transpose(N_e(zeta)).N_e(zeta)*me_lin(zeta), zeta, 0, 1);
+printf(true, "Me_lin= ~a~%", ssubst("];[", "],[", string(args(M_e_lin))))$
+
+C1_e_lin: 1/le*integrate(submatrix(4, N_e(x1/le))*me_lin(x1/le), x1, 0, le);
+printf(true, "C1e_lin= ~a~%", ssubst("];[", "],[", string(args(C1_e_lin))))$
+
+for i: 1 thru 3 do
+    for j: 1 thru 3 do (
+        C3_e_ab_lin: 1/le*integrate(transpose(row(N_e(x1/le), i)).row(N_e(x1/le), j)*me_lin(x1/le), x1, 0, le),
+        printf(true, "C3e_lin{~d,~d}= ~a~%", i, j, ssubst("];[", "],[", string(args(C3_e_ab_lin))))
+    );

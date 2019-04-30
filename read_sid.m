@@ -190,7 +190,7 @@ while ~feof(fid)
         t.nq= read_integer(line, il);
     elseif strncmpi(line, 'structure', 6)
         t.structure= read_integer(line, il);
-    elseif strcmp(line, ['end ' name])
+    elseif strcmp(lower(line), ['end ' lower(name)])
         if ~isfield(t, 'order') || ~isfield(t, 'nrow') || ~isfield(t, 'ncol') || ~isfield(t, 'nq') || ~isfield(t, 'structure')
             error('taylor element ends but order, nrow, ncol, structure, and nq have not been defined in line %d', il);
         elseif t.order>1 && ~isfield(t, 'nqn') 
@@ -227,17 +227,17 @@ while ~feof(fid)
             node.rframe= 'unknown ref';
         end        
     else
-        switch line
+        switch lower(line)
             case 'end node'
                 return
             case 'origin'
                 [node.origin, il]= read_taylor(fid, il, 'origin');
-            case 'AP'
+            case 'ap'
                 [node.AP, il]= read_taylor(fid, il, 'AP');
             case 'phi'
-                [node.phi, il]= read_taylor(fid, il, 'phi');
+                [node.Phi, il]= read_taylor(fid, il, 'Phi');
             case 'psi'
-                [node.psi, il]= read_taylor(fid, il, 'psi');
+                [node.Psi, il]= read_taylor(fid, il, 'Psi');
             case 'sigma'
                 [node.sigma, il]= read_taylor(fid, il, 'sigma');
             otherwise

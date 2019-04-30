@@ -42,8 +42,8 @@ for i= 1:length(sid.frame)
 end    
 fprintf(fid, '        end frame\n');    
 
-write_taylor('mdCM', sid.mdCM, fid, '        ');
-write_taylor('J', sid.J, fid, '        ');
+write_taylor('mdCM', sid.md, fid, '        ');
+write_taylor('J', sid.I, fid, '        ');
 write_taylor('Ct', sid.Ct, fid, '        ');
 write_taylor('Cr', sid.Cr, fid, '        ');
 write_taylor('Me', sid.Me, fid, '        ');

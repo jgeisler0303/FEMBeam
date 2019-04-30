@@ -37,4 +37,6 @@ idx2D_(idx2D)= 1;
 idx2D_([1 2 3 4 18-6+2 18-6+3])= [];
 idx2D_= logical(idx2D_);
 
-
+write_sid(sid, 'test.SID_FEM');
+sid= read_sid('test.SID_FEM');
+write_sid(sid, 'test.SID_FEM');
