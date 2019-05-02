@@ -98,7 +98,7 @@ A9_0: A9_0, diff, expand;
 A10_0: subst([u=U_deform[1, 1], v=U_deform[2, 1], w=U_deform[3, 1]], A10);
 A10_0: A10_0, diff, expand;
 
-/* Eq (30) */
+/* following Eq (30) */
 subst_area_int(f):= block([f_],
                           f_: f,
                           f_: ratsubst(I4y, integrate(integrate(z^4, y), z), f_),
@@ -125,15 +125,15 @@ load(functs);
 assume(le>0);
 U_A1: expand(E/2*map(lambda([f], integrate(f, x, 0, le)), subst_area_int(integrate(integrate(A1_0, y), z))));
 U_A3: expand(1/4 * E/2*map(lambda([f], integrate(f, x, 0, le)), subst_area_int(integrate(integrate(A3_0, y), z))));
-U_A3: part(U_A3, 2);
+U_A3: ratsubst(0, phi0(x), U_A3);
 U_A4: expand(1/4 * E/2*map(lambda([f], integrate(f, x, 0, le)), subst_area_int(integrate(integrate(A4_0, y), z))));
-U_A4: part(U_A4, 2);
+U_A4: ratsubst(0, phi0(x), U_A4);
 U_A7: expand(1/4 * E/2*map(lambda([f], integrate(f, x, 0, le)), expand(subst_area_int(integrate(integrate(A7_0, y), z)))));
-U_A7: part(U_A7, 3);
+U_A7: ratsubst(0, phi0(x), U_A7);
 U_A9: expand(E/2*map(lambda([f], integrate(f, x, 0, le)), expand(subst_area_int(integrate(integrate(A9_0, y), z)))));
-U_A9: part(U_A9, 3);
+U_A9: ratsubst(0, phi0(x), U_A9);
 U_A10: expand(E/2*map(lambda([f], integrate(f, x, 0, le)), expand(subst_area_int(integrate(integrate(A10_0, y), z)))));
-U_A10: part(U_A10, 3);
+U_A10: ratsubst(0, phi0(x), U_A10);
 
 /* Eq (31) */
 U_A: U_A1 + U_A3 + U_A4 + U_A7 + U_A9 + U_A10;

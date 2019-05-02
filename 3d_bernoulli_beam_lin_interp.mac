@@ -40,9 +40,10 @@ K_L_lin: hessian(U_Le_lin, flatten(args(qe)));
 printf(true, "K_L_lin= ~a~%", ssubst("];[", "],[", string(args(K_L_lin))))$
 
 U_A9_lin: expand(E/2*map(lambda([f], integrate(f, x, 0, le)), expand(subst_lin(subst_area_int(integrate(integrate(A9_0, y), z))))));
-U_A9_lin: part(U_A9_lin, [7, 8, 9]);
+U_A9_lin: ratsubst(0, phi0(x), U_A9_lin);
 U_A10_lin: expand(E/2*map(lambda([f], integrate(f, x, 0, le)), expand(subst_lin(subst_area_int(integrate(integrate(A10_0, y), z))))));
-U_A10_lin: part(U_A10_lin, [7, 8, 9]);
+U_A10_lin: ratsubst(0, phi0(x), U_A10_lin);
+
 U_G_lin: factor(U_A9_lin + U_A10_lin);
 U_Ge_lin: subst([u0=u_ax[1, 1], v0=u_ax[2, 1], w0=u_ax[3, 1], phi0(x)=u_ax[4, 1]], U_G_lin);
 U_Ge_lin: U_Ge_lin, diff, nouns;
