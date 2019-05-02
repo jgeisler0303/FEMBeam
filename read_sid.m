@@ -167,7 +167,7 @@ while ~feof(fid)
             if ~isfield(t, 'order') || ~isfield(t, 'nrow') || ~isfield(t, 'ncol') || ~isfield(t, 'nq') || ~isfield(t, 'nqn') || ~isfield(t, 'structure')
                 error('found m1 entry but not all of order, nrow, ncol, np, npn, and structure have been defined in line %d. found "%s" instead', il, line);
             end
-            t.M1= zeros(t.nrow, t.nq, t.ncol);
+            t.M1= zeros(t.nrow, t.ncol, t.nq);
         end
         t.M1= read_matrix(t.M1, line, il, 3);
     elseif strncmpi(line, 'mn', 2)
@@ -175,7 +175,7 @@ while ~feof(fid)
             if ~isfield(t, 'order') || ~isfield(t, 'nrow') || ~isfield(t, 'ncol') || ~isfield(t, 'nq') || ~isfield(t, 'nqn') || ~isfield(t, 'structure')
                 error('found mn entry but not all of order, nrow, ncol, np, npn, and structure have been defined in line %d. found "%s" instead', il, line);
             end
-            t.mn= zeros(t.nrow, t.nqn, t.ncol);
+            t.mn= zeros(t.nrow, t.ncol, t.nqn);
         end
         t.mn= read_matrix(t.mn, line, il, 3);
     elseif strncmpi(line, 'order', 5)
@@ -200,10 +200,10 @@ while ~feof(fid)
                 t.M0= zeros(t.nrow, t.ncol);
             end
             if t.order>0 && ~isfield(t, 'M1')
-                t.M1= zeros(t.nrow, t.nq, t.ncol);
+                t.M1= zeros(t.nrow, t.ncol, t.nq);
             end
             if t.order>1 && ~isfield(t, 'mn')
-                t.mn= zeros(t.nrow, t.nqn, t.ncol);
+                t.mn= zeros(t.nrow, t.ncol, t.nqn);
             end            
         end
         return

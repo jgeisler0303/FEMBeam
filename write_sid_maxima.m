@@ -40,22 +40,23 @@ fprintf(fid, '\n%s: emptyElasticMode(%d);\n\n', body_name, sid.refmod.nelastq);
 fprintf(fid, '%s@mass: %g;\n\n', body_name, sid.refmod.nelastq);
 
 for i= 1:sid.refmod.nelastq
-    fprintf(fid, '%rm@ielastq[%d]: %s;\n', body_name, i, sid.refmod.ielastq{i});
+    fprintf(fid, '%s@ielastq[%d]: "%s";\n', body_name, i, sid.refmod.ielastq{i});
 end
+fprintf(fid, '\n');
 
 % TODO: write frame data
 
-write_taylor(body_name, 'md', sid.md, false, fid, threshold);
-write_taylor(body_name, 'I', sid.I, false, fid, threshold);
-write_taylor(body_name, 'Ct', sid.Ct, false, fid, threshold);
-write_taylor(body_name, 'Cr', sid.Cr, false, fid, threshold);
-write_taylor(body_name, 'Me', sid.Me, false, fid, threshold);
-write_taylor(body_name, 'Gr', sid.Gr, true, fid, threshold);
-write_taylor(body_name, 'Ge', sid.Ge, true, fid, threshold);
-write_taylor(body_name, 'Oe', sid.Oe, false, fid, threshold);
-%  write_taylor(body_name, 'ksigma', sid.ksigma, fid, threshold);
-write_taylor(body_name, 'Ke', sid.Ke, false, fid, threshold);
-write_taylor(body_name, 'De', sid.De, false, fid, threshold);
+write_taylor(fid, body_name, 'md', sid.md, false, threshold);
+write_taylor(fid, body_name, 'I', sid.I, false, threshold);
+write_taylor(fid, body_name, 'Ct', sid.Ct, false, threshold);
+write_taylor(fid, body_name, 'Cr', sid.Cr, false, threshold);
+write_taylor(fid, body_name, 'Me', sid.Me, false, threshold);
+write_taylor(fid, body_name, 'Gr', sid.Gr, true, threshold);
+write_taylor(fid, body_name, 'Ge', sid.Ge, true, threshold);
+write_taylor(fid, body_name, 'Oe', sid.Oe, false, threshold);
+%  write_taylor(fid, body_name, 'ksigma', sid.ksigma, threshold);
+write_taylor(fid, body_name, 'Ke', sid.Ke, false, threshold);
+write_taylor(fid, body_name, 'De', sid.De, false, threshold);
 
 fclose(fid);
 
@@ -64,22 +65,22 @@ fclose(fid);
 %  
 %  fprintf(fid, '%s    rframe = %s\n', indent, f.rframe);
 %  write_taylor('origin', f.origin, fid, [indent '    ']);
-%  write_taylor('phi', f.Phi, fid, [indent '    ']);
-%  write_taylor('psi', f.Psi, fid, [indent '    ']);
-%  write_taylor('AP', f.AP, fid, [indent '    ']);
+%  write_taylor(fid, 'phi', f.Phi, [indent '    ']);
+%  write_taylor(fid, 'psi', f.Psi, [indent '    ']);
+%  write_taylor(fid, 'AP', f.AP, [indent '    ']);
 %  if isfield(f, 'sigma')
-%      write_taylor('sigma', f.sigma, fid, [indent '    ']);
+%      write_taylor(fid, 'sigma', f.sigma, [indent '    ']);
 %  end
 %  
 %  fprintf(fid, '%send node\n', indent);
 
 
-function write_taylor(name, var_name, t, with_sub_idx, fid, threshold)
+function write_taylor(fid, name, var_name, t, with_sub_idx, threshold)
 structure= t.structure;
 if isempty(t.M0), structure= 0; end
     
 if with_sub_idx
-    nelem= t.nq;
+    nelem= 3;
 else
     nelem= 0;
 end
@@ -87,39 +88,42 @@ switch structure
     case 0
     case 1
         for i= 1:t.nrow
-            write_m_element(sprintf('%s@%s', name, var_name), t.M0, [i, i], nelem, threshold);
+            write_t_element(fid, sprintf('%s@%s', name, var_name), t.M0, [i, i], nelem, threshold);
         end
     case {2, 3}
         for i= 1:t.nrow
             for j= 1:t.ncol
-                write_m_element(sprintf('%s@%s', name, var_name), t.M0, [i, j], nelem, threshold);
+                write_t_element(fid, sprintf('%s@%s', name, var_name), t.M0, [i, j], nelem, threshold);
             end
         end
     case 4
 end
 
 if t.order>0
-    for i= 1:t.nrow
-        for j= 1:t.ncol
-            for k= 1:t.nq
-                write_m_element(sprintf('%s@%s', name, var_name), t.M1, [i, j, k], nelem, threshold);
+    for k= 1:t.nq
+        for i= 1:t.nrow
+            for j= 1:t.ncol
+                write_t_element(fid, sprintf('%s@%s', name, var_name), t.M1, [i, j, k], nelem, threshold);
             end
         end
     end
 end
+fprintf(fid, '\n');
 
-
-function write_m_element(var_name, data, idx, nelem, threshold)
+function write_t_element(fid, var_name, data, idx, nelem, threshold)
 v= subsref(data, struct('type', '()', 'subs', {num2cell(idx)}));
 if abs(v)<threshold, return; end
     
 if length(idx)==2
-    if nelem>0
-        fprintf(fid, '%s@M0[%d, %d]: %g\n', var_name, idx(1), idx(2), v);
-    else
-        fprintf(fid, '%s@M0[%d, %d]: %g\n', var_name, idx(1), idx(2), v);
-    end
+    write_m_element(fid, sprintf('%s@M0', var_name), v, idx, nelem);
 else
-    fprintf(fid, '%s@M1[%d][%d, %d]: %g\n', var_name, idx(3), idx(1), idx(2), v)
+    write_m_element(fid, sprintf('%s@M1[%d]', var_name, idx(3)), v, idx(1:2), nelem);
+end
+
+function write_m_element(fid, var_name, v, idx, nelem)
+if nelem==0
+    fprintf(fid, '%s[%d, %d]: %g\n', var_name, idx(1), idx(2), v);
+else
+    fprintf(fid, '%s[%d][%d, %d]: %g\n', var_name, fix((idx(2)-1)/nelem)+1, idx(1), rem((idx(2)-1), nelem)+1, v);
 end
 

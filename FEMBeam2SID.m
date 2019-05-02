@@ -289,7 +289,7 @@ for a= 1:3
             n= lmn(3);
             KFr{a}= KFr{a} + T{e}' * (-C3{e}{m, n} + C3{e}{n, m}) * T{e} * Gamma{e}(l, a);
                 
-            lmn= shift(lmn, -1);
+            lmn= circshift(lmn, [0 -1]);
         end
     end
     % (6.483) S. 367
@@ -343,6 +343,7 @@ for i= 1:6
         if b>3, b= 1; end
         KFom{i}= KFom_ab{a, b} + KFom_ab{a, b}';
     end
+    KFom{i}*ZF0
     Kom{i}= Se'*KFom{i}*Se;
 
     Kom0(:, i)= Se'*KFom{i}*ZF0;
@@ -494,7 +495,9 @@ sid.Gr.M0= -2*reshape(C4, 3, 3*nq); % (6.403) S. 339; or -2*KFr?
 %  sid.Gr.M1
 % sid.Ge
 sid.Ge= emptyTaylor(0, nq, 3*nq, 0, 0, 3);
-sid.Ge.M0= 2*[Kr{1} Kr{2} Kr{3}]; % (6.405) S. 340 = 2*C5'
+for i= 1:nq
+    sid.Ge.M0(:, 3*(i-1)+(1:3))= 2*[Kr{1}(:, i) Kr{2}(:, i) Kr{3}(:, i)]; % (6.405) S. 340 = 2*C5'
+end
 %  sid.Oe (6.407)
 sid.Oe= emptyTaylor(1, nq, 6, nq, 0, 3);
 sid.Oe.M0= Kom0;

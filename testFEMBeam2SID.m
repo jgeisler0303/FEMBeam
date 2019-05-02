@@ -39,4 +39,4 @@ idx2D_= logical(idx2D_);
 
 write_sid(sid, 'test.SID_FEM');
 sid= read_sid('test.SID_FEM');
-write_sid(sid, 'test.SID_FEM');
+% write_sid(sid, 'test.SID_FEM');
