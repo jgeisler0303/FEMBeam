@@ -29,14 +29,14 @@ subst_lin(f):= block([f_],
                      f_
                );
 
-U_A1_lin: expand(E/2*map(lambda([f], integrate(f, x, 0, le)), subst_lin(subst_area_int(integrate(integrate(A1_0, y), z)))));
+U_A1_lin: E/2*map(lambda([f], integrate(f, x, 0, le)), expand(subst_lin(subst_area_int(integrate(integrate(A1_0, y), z)))));
 U_S1_lin: G/2*integrate(subst_lin(ratsubst(Ip, Iy+Iz, subst_area_int(integrate(integrate(S1_0, y), z)))), x, 0, le);
 U_L_lin: U_A1_lin + U_S1_lin;
 U_Le_lin: subst([u0=u_ax[1, 1], v0=u_ax[2, 1], w0=u_ax[3, 1], phi0(x)=u_ax[4, 1]], U_L_lin);
 U_Le_lin: U_Le_lin, diff, nouns;
 U_Le_lin: U_Le_lin, nouns;
 
-K_L_lin: hessian(U_Le_lin, flatten(args(qe)));
+K_L_lin: ratsimp(hessian(U_Le_lin, flatten(args(qe))));
 printf(true, "K_L_lin= ~a~%", ssubst("];[", "],[", string(args(K_L_lin))))$
 
 U_A9_lin: expand(E/2*map(lambda([f], integrate(f, x, 0, le)), expand(subst_lin(subst_area_int(integrate(integrate(A9_0, y), z))))));
@@ -52,20 +52,20 @@ K_G_lin: makelist(zeromatrix(12, 12), i, 1, 12);
 for i: 1 thru 12 do
     for j: 1 thru 12 do
         for k: 1 thru 12 do
-            K_G_lin[k][i, j]: diff(S_G_lin[i, 1], qe[j, 1], 1, qe[k, 1], 1);
+            K_G_lin[k][i, j]: ratsimp(diff(S_G_lin[i, 1], qe[j, 1], 1, qe[k, 1], 1));
         
 printf(true, "K_Ge_ux1_lin= ~a~%", ssubst("];[", "],[", string(args(K_G_lin[1]))))$
 printf(true, "K_Ge_ux2_lin= ~a~%", ssubst("];[", "],[", string(args(K_G_lin[7]))))$
 
 me_lin(zeta):= me0*N1(zeta) + me1*N2(zeta);
-M_e_lin: integrate(transpose(N_e(zeta)).N_e(zeta)*me_lin(zeta), zeta, 0, 1);
+M_e_lin: ratsimp(integrate(transpose(N_e(zeta)).N_e(zeta)*me_lin(zeta), zeta, 0, 1));
 printf(true, "Me_lin= ~a~%", ssubst("];[", "],[", string(args(M_e_lin))))$
 
-C1_e_lin: 1/le*integrate(submatrix(4, N_e(x1/le))*me_lin(x1/le), x1, 0, le);
+C1_e_lin: ratsimp(1/le*integrate(submatrix(4, N_e(x1/le))*me_lin(x1/le), x1, 0, le));
 printf(true, "C1e_lin= ~a~%", ssubst("];[", "],[", string(args(C1_e_lin))))$
 
 for i: 1 thru 3 do
     for j: 1 thru 3 do (
-        C3_e_ab_lin: 1/le*integrate(transpose(row(N_e(x1/le), i)).row(N_e(x1/le), j)*me_lin(x1/le), x1, 0, le),
+        C3_e_ab_lin: ratsimp(1/le*integrate(transpose(row(N_e(x1/le), i)).row(N_e(x1/le), j)*me_lin(x1/le), x1, 0, le)),
         printf(true, "C3e_lin{~d,~d}= ~a~%", i, j, ssubst("];[", "],[", string(args(C3_e_ab_lin))))
     );
