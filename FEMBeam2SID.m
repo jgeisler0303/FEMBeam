@@ -272,7 +272,7 @@ for i= 1:nk
 end
 
 % (6.478) S. 366
-if exist('modes', 'var') && ~isempty(modes)
+<<<<<<< .mineif exist('modes', 'var') && ~isempty(modes)
     if iscell(modes)
         modes_= [];
         for i= 1:length(modes)
@@ -301,7 +301,16 @@ if exist('modes', 'var') && ~isempty(modes)
         end
     end
     
-    Se= T__*V(:, modes);
+=======if exist('modes', 'var') && ~isempty(modes)
+    if exist('normalize', 'var')
+        if length(normalize)~=length(modes)
+            error('argument "normalize" must have the same size as modes')
+        end
+        for i= 1:length(modes)
+            V(:, modes(i))= V(:, modes(i))/V(end-6+normalize(i), i);
+        end
+    end
+>>>>>>> .theirs    Se= T__*V(:, modes);
     sid.modes= modes;
 else
     Se= T__;
@@ -477,7 +486,7 @@ else
 end
 % Tabelle 6.9 S. 346
 %  sid.refmod % Masse und Name der Koordinaten q_i
-sid.refmod.mass= mE(1); % Masse mi des Körpers
+sid.refmod.mass= mE(1); % Masse mi des KÃ¶rpers
 sid.refmod.nelastq= nq; % Zahl der Koordinaten
 coord_name= {'ux' 'uy' 'uz' 'rx' 'ry' 'rz'};
 if exist('modes', 'var')
