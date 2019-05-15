@@ -14,9 +14,9 @@
 %  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 % Equation and page numbers refer to
-% Schwertassek, R & Wallrapp, O. (1999). Dynamik flexibler MehrkÃ¶rpersysteme.
+% Schwertassek, R & Wallrapp, O. (1999). Dynamik flexibler Mehrkörpersysteme.
 
-function sid= FEMBeam2SID(data, ref_system, modes)
+function sid= FEMBeam2SID(data, ref_system, modes, normalize)
 ne= length(data)-1;
 nk= ne+1;
 nqe= 12; % same for all elements
@@ -25,9 +25,23 @@ nF= nk*nqk;
 nq_= nF-nqk;
 
 
-if ~isfield(data, 'x') && isfield(data, 'R')
-    for i= 1:nk
-        data(i).x= [data(i).R, 0, 0]';
+if ~isfield(data, 'x')
+    if isfield(data, 'R')
+        for i= 1:nk
+            data(i).x= [data(i).R, 0, 0]';
+        end
+    elseif isfield(data, 'Rx')
+        for i= 1:nk
+            data(i).x= [data(i).Rx, 0, 0]';
+        end            
+    elseif isfield(data, 'Ry')
+        for i= 1:nk
+            data(i).x= [0 data(i).Ry, 0]';
+        end            
+    elseif isfield(data, 'Rz')
+        for i= 1:nk
+            data(i).x= [0, 0, data(i).Rz]';
+        end            
     end
 end
 % calculate the tangent (4.24)
@@ -37,21 +51,19 @@ if ~isfield(data, 'dx')
     end
 end        
 
-% start at origine 
-x_last= [0 0 0]';
-
-% start with oriantation in x direction
-t_last= [1 0 0]';
-
-% start with normal pointing in y direction
-h_last= [0 1 0]';
-
 for i= 1:ne
     dx= data(i).dx;
     % calculate the tangent (4.24)
     data(i).l= norm(dx);
     data(i).t= dx/data(i).l;
-
+    if i==1
+        t_last= data(1).t;
+        % start for the normal
+        % for t pointing in x or z direction, h will be in y direction
+        % for t pointing in y direction, h will be in -x direction
+        h_last= null(t_last');
+        h_last= h_last(:, 1);
+    end
 
     % calculate normal vector (4.33)
     dt= data(i).t - t_last;
@@ -74,11 +86,11 @@ for i= 1:ne
     % element orientation (4.36)
     data(i).D= [data(i).t data(i).h data(i).b]';
 
-    x_last= data(i).x;
     t_last= data(i).t;
     h_last= data(i).h;
 end
 
+[~, extentIdx]= max(sum([data.x], 2));
 
 T= cell(ne, 1);
 Gamma= cell(ne, 1);
@@ -86,28 +98,45 @@ for e= 1:ne
     T{e}= zeros(nqe, nF);
     Gamma{e}= data(e).D;
     % (5.123) S. 200
-    T{e}(1:nqk, (e-1)*nqk+(1:nqk))= blkdiag(data(e).D, eye(3));
-    T{e}(nqk+1:nqe, e*nqk+(1:nqk))= blkdiag(data(e).D, eye(3));
+    % not sure which is the right version
+%     T{e}(1:nqk, (e-1)*nqk+(1:nqk))= blkdiag(data(e).D, eye(3));
+%     T{e}(nqk+1:nqe, e*nqk+(1:nqk))= blkdiag(data(e).D, eye(3));
+    T{e}(1:nqk, (e-1)*nqk+(1:nqk))= blkdiag(data(e).D, data(e).D);
+    T{e}(nqk+1:nqe, e*nqk+(1:nqk))= blkdiag(data(e).D, data(e).D);
 end
 
 M= cell(ne, 1);
 for e= 1:ne
     le= data(e).l;
     if isfield(data, 'A') && isfield(data, 'rho')
-        me0= data(e).A * le * data(e).rho;
-        me1= data(e+1).A * le * data(e).rho;
+        me01= getElementValue(data, e, 'A') * le * data(e).rho;
     else
-        me0= data(e).me;
-        me1= data(e+1).me;
+        if isfield(data, 'mu')
+            me01= getElementValue(data, e, 'mu') * le;
+        else
+            me01= getElementValue(data, e, 'me');
+        end
     end
-    M{e}= [[(me1+3*me0)/12,0,0,0,0,0,(me1+me0)/12,0,0,0,0,0];[0,(3*me1+10*me0)/35,0,0,0,(le*(7*me1+15*me0))/420,0,(9*me1+9*me0)/140,0,0,0,-(le*(6*me1+7*me0))/420];[0,0,(3*me1+10*me0)/35,0,-(le*(7*me1+15*me0))/420,0,0,0,(9*me1+9*me0)/140,0,(le*(6*me1+7*me0))/420,0];[0,0,0,(me1+3*me0)/12,0,0,0,0,0,(me1+me0)/12,0,0];[0,0,-(le*(7*me1+15*me0))/420,0,(le^2*(3*me1+5*me0))/840,0,0,0,-(le*(7*me1+6*me0))/420,0,-(le^2*(me1+me0))/280,0];[0,(le*(7*me1+15*me0))/420,0,0,0,(le^2*(3*me1+5*me0))/840,0,(le*(7*me1+6*me0))/420,0,0,0,-(le^2*(me1+me0))/280];[(me1+me0)/12,0,0,0,0,0,(3*me1+me0)/12,0,0,0,0,0];[0,(9*me1+9*me0)/140,0,0,0,(le*(7*me1+6*me0))/420,0,(10*me1+3*me0)/35,0,0,0,-(le*(15*me1+7*me0))/420];[0,0,(9*me1+9*me0)/140,0,-(le*(7*me1+6*me0))/420,0,0,0,(10*me1+3*me0)/35,0,(le*(15*me1+7*me0))/420,0];[0,0,0,(me1+me0)/12,0,0,0,0,0,(3*me1+me0)/12,0,0];[0,0,(le*(6*me1+7*me0))/420,0,-(le^2*(me1+me0))/280,0,0,0,(le*(15*me1+7*me0))/420,0,(le^2*(5*me1+3*me0))/840,0];[0,-(le*(6*me1+7*me0))/420,0,0,0,-(le^2*(me1+me0))/280,0,-(le*(15*me1+7*me0))/420,0,0,0,(le^2*(5*me1+3*me0))/840]];
+    me0= me01(1);
+    me1= me01(2);
+    M{e}= [[(me1+3*me0)/12,0,0,0,0,0,(me1+me0)/12,0,0,0,0,0];[0,(3*me1+10*me0)/35,0,0,0,(7*le*me1+15*le*me0)/420,0,(9*me1+9*me0)/140,0,0,0,-(6*le*me1+7*le*me0)/420];[0,0,(3*me1+10*me0)/35,0,-(7*le*me1+15*le*me0)/420,0,0,0,(9*me1+9*me0)/140,0,(6*le*me1+7*le*me0)/420,0];[0,0,0,(me1+3*me0)/12,0,0,0,0,0,(me1+me0)/12,0,0];[0,0,-(7*le*me1+15*le*me0)/420,0,(3*le^2*me1+5*le^2*me0)/840,0,0,0,-(7*le*me1+6*le*me0)/420,0,-(le^2*me1+le^2*me0)/280,0];[0,(7*le*me1+15*le*me0)/420,0,0,0,(3*le^2*me1+5*le^2*me0)/840,0,(7*le*me1+6*le*me0)/420,0,0,0,-(le^2*me1+le^2*me0)/280];[(me1+me0)/12,0,0,0,0,0,(3*me1+me0)/12,0,0,0,0,0];[0,(9*me1+9*me0)/140,0,0,0,(7*le*me1+6*le*me0)/420,0,(10*me1+3*me0)/35,0,0,0,-(15*le*me1+7*le*me0)/420];[0,0,(9*me1+9*me0)/140,0,-(7*le*me1+6*le*me0)/420,0,0,0,(10*me1+3*me0)/35,0,(15*le*me1+7*le*me0)/420,0];[0,0,0,(me1+me0)/12,0,0,0,0,0,(3*me1+me0)/12,0,0];[0,0,(6*le*me1+7*le*me0)/420,0,-(le^2*me1+le^2*me0)/280,0,0,0,(15*le*me1+7*le*me0)/420,0,(5*le^2*me1+3*le^2*me0)/840,0];[0,-(6*le*me1+7*le*me0)/420,0,0,0,-(le^2*me1+le^2*me0)/280,0,-(15*le*me1+7*le*me0)/420,0,0,0,(5*le^2*me1+3*le^2*me0)/840]];
+    
+    if isfield(data, 'Mlumped')
+        M{e}(1, 1)= M{e}(1, 1) + data(e).Mlumped;
+        M{e}(2, 2)= M{e}(2, 2) + data(e).Mlumped;
+        M{e}(3, 3)= M{e}(3, 3) + data(e).Mlumped;
+        if e==ne
+            M{e}(1+6, 1+6)= M{e}(1+6, 1+6) + data(e+1).Mlumped;
+            M{e}(2+6, 2+6)= M{e}(2+6, 2+6) + data(e+1).Mlumped;
+            M{e}(3+6, 3+6)= M{e}(3+6, 3+6) + data(e+1).Mlumped;
+        end
+    end
 end
 
 MF= zeros(nF);
 for e= 1:ne
     MF= MF + T{e}' * M{e} * T{e};
 end
-
 
 K= cell(ne, 1);
 for e= 1:ne
@@ -123,55 +152,54 @@ for e= 1:ne
         G= E/2/(1+0.3);
     end
     if isfield(data, 'A')
-        A0= data(e).A;
-        A1= data(e+1).A;
+        A01= getElementValue(data, e, 'A');
     else
         if isfield(data, 'EA')
-            A0= data(e).EA / E;
-            A1= data(e+1).EA / E;
+            A01= getElementValue(data, e, 'EA') / E;
         else
-            A0= 100; % very stiff
-            A1= 100; % very stiff
+            A01= [100, 100]; % very stiff
         end
     end
+    A0= A01(1);
+    A1= A01(2);
+
     if isfield(data, 'Iy')
-        Iy0= data(e).Iy;
-        Iy1= data(e+1).Iy;
+        Iy01= getElementValue(data, e, 'Iy');
     else 
         if isfield(data, 'EIy')
-            Iy0= data(e).EIy / E;
-            Iy1= data(e+1).EIy / E;
+            Iy01= getElementValue(data, e, 'EIy') / E;
         else
-            Iy0= 100; % very stiff
-            Iy1= 100; % very stiff
+            Iy01= [100 100]; % very stiff
         end
     end
+    Iy0= Iy01(1);
+    Iy1= Iy01(2);
+
     if isfield(data, 'Iz')
-        Iz0= data(e).Iz;
-        Iz1= data(e+1).Iz;
+        Iz01= getElementValue(data, e, 'Iz');
     else 
         if isfield(data, 'EIz')
-            Iz0= data(e).EIz / E;
-            Iz1= data(e+1).EIz / E;
+            Iz01= getElementValue(data, e, 'EIz') / E;
         else
-            Iz0= 100; % very stiff
-            Iz1= 100; % very stiff
+            Iz01= [100 100]; % very stiff
         end
     end
+    Iz0= Iz01(1);
+    Iz1= Iz01(2);
+
     if isfield(data, 'Ip')
-        Ip0= data(e).Ip;
-        Ip1= data(e+1).Ip;
+        Ip01= getElementValue(data, e, 'Ip');
     else
         if isfield(data, 'GIp')
-            Ip0= data(e).EIp / G;
-            Ip1= data(e+1).EIp / G;
+            Ip01= getElementValue(data, e, 'GIp') / G;
         else
-            Ip0= 100; % very stiff
-            Ip1= 100; % very stiff
+            Ip01= [100 100]; % very stiff
         end
     end
+    Ip0= Ip01(1);
+    Ip1= Ip01(2);
 
-    K{e}= [[((A1+A0)*E)/(2*le^2),0,0,0,0,0,(((-2*A1)-2*A0)*E)/(4*le^2),0,0,0,0,0];[0,(E*(12*Iz1+12*Iz0))/(2*le^4),0,0,0,(E*(8*Iz1+16*Iz0))/(4*le^3),0,(E*((-24*Iz1)-24*Iz0))/(4*le^4),0,0,0,(E*(16*Iz1+8*Iz0))/(4*le^3)];[0,0,(E*(12*Iy1+12*Iy0))/(2*le^4),0,(E*((-8*Iy1)-16*Iy0))/(4*le^3),0,0,0,(E*((-24*Iy1)-24*Iy0))/(4*le^4),0,(E*((-16*Iy1)-8*Iy0))/(4*le^3),0];[0,0,0,(G*(Ip1+Ip0))/(2*le),0,0,0,0,0,-(G*(Ip1+Ip0))/(2*le),0,0];[0,0,(E*((-8*Iy1)-16*Iy0))/(4*le^3),0,(E*(2*Iy1+6*Iy0))/(2*le^2),0,0,0,(E*(8*Iy1+16*Iy0))/(4*le^3),0,(E*(4*Iy1+4*Iy0))/(4*le^2),0];[0,(E*(8*Iz1+16*Iz0))/(4*le^3),0,0,0,(E*(2*Iz1+6*Iz0))/(2*le^2),0,(E*((-8*Iz1)-16*Iz0))/(4*le^3),0,0,0,(E*(4*Iz1+4*Iz0))/(4*le^2)];[(((-2*A1)-2*A0)*E)/(4*le^2),0,0,0,0,0,((A1+A0)*E)/(2*le^2),0,0,0,0,0];[0,(E*((-24*Iz1)-24*Iz0))/(4*le^4),0,0,0,(E*((-8*Iz1)-16*Iz0))/(4*le^3),0,(E*(12*Iz1+12*Iz0))/(2*le^4),0,0,0,(E*((-16*Iz1)-8*Iz0))/(4*le^3)];[0,0,(E*((-24*Iy1)-24*Iy0))/(4*le^4),0,(E*(8*Iy1+16*Iy0))/(4*le^3),0,0,0,(E*(12*Iy1+12*Iy0))/(2*le^4),0,(E*(16*Iy1+8*Iy0))/(4*le^3),0];[0,0,0,-(G*(Ip1+Ip0))/(2*le),0,0,0,0,0,(G*(Ip1+Ip0))/(2*le),0,0];[0,0,(E*((-16*Iy1)-8*Iy0))/(4*le^3),0,(E*(4*Iy1+4*Iy0))/(4*le^2),0,0,0,(E*(16*Iy1+8*Iy0))/(4*le^3),0,(E*(6*Iy1+2*Iy0))/(2*le^2),0];[0,(E*(16*Iz1+8*Iz0))/(4*le^3),0,0,0,(E*(4*Iz1+4*Iz0))/(4*le^2),0,(E*((-16*Iz1)-8*Iz0))/(4*le^3),0,0,0,(E*(6*Iz1+2*Iz0))/(2*le^2)]];
+    K{e}= [[((A1+A0)*E)/(2*le),0,0,0,0,0,-((A1+A0)*E)/(2*le),0,0,0,0,0];[0,((6*Iz1+6*Iz0)*E)/le^3,0,0,0,((2*Iz1+4*Iz0)*E)/le^2,0,-((6*Iz1+6*Iz0)*E)/le^3,0,0,0,((4*Iz1+2*Iz0)*E)/le^2];[0,0,((6*Iy1+6*Iy0)*E)/le^3,0,-((2*Iy1+4*Iy0)*E)/le^2,0,0,0,-((6*Iy1+6*Iy0)*E)/le^3,0,-((4*Iy1+2*Iy0)*E)/le^2,0];[0,0,0,((Ip1+Ip0)*G)/(2*le),0,0,0,0,0,-((Ip1+Ip0)*G)/(2*le),0,0];[0,0,-((2*Iy1+4*Iy0)*E)/le^2,0,((Iy1+3*Iy0)*E)/le,0,0,0,((2*Iy1+4*Iy0)*E)/le^2,0,((Iy1+Iy0)*E)/le,0];[0,((2*Iz1+4*Iz0)*E)/le^2,0,0,0,((Iz1+3*Iz0)*E)/le,0,-((2*Iz1+4*Iz0)*E)/le^2,0,0,0,((Iz1+Iz0)*E)/le];[-((A1+A0)*E)/(2*le),0,0,0,0,0,((A1+A0)*E)/(2*le),0,0,0,0,0];[0,-((6*Iz1+6*Iz0)*E)/le^3,0,0,0,-((2*Iz1+4*Iz0)*E)/le^2,0,((6*Iz1+6*Iz0)*E)/le^3,0,0,0,-((4*Iz1+2*Iz0)*E)/le^2];[0,0,-((6*Iy1+6*Iy0)*E)/le^3,0,((2*Iy1+4*Iy0)*E)/le^2,0,0,0,((6*Iy1+6*Iy0)*E)/le^3,0,((4*Iy1+2*Iy0)*E)/le^2,0];[0,0,0,-((Ip1+Ip0)*G)/(2*le),0,0,0,0,0,((Ip1+Ip0)*G)/(2*le),0,0];[0,0,-((4*Iy1+2*Iy0)*E)/le^2,0,((Iy1+Iy0)*E)/le,0,0,0,((4*Iy1+2*Iy0)*E)/le^2,0,((3*Iy1+Iy0)*E)/le,0];[0,((4*Iz1+2*Iz0)*E)/le^2,0,0,0,((Iz1+Iz0)*E)/le,0,-((4*Iz1+2*Iz0)*E)/le^2,0,0,0,((3*Iz1+Iz0)*E)/le]];
 end
 
 KF= zeros(nF);
@@ -182,16 +210,20 @@ end
 
 T__= eye(nF);
 
-if ~exist('ref_system', 'var')
+if ~exist('ref_system', 'var') && ~isempty(ref_system)
     ref_system= 1;
 end
 switch ref_system
     case 1
         % fixed base
         T__(:, 1:nqk)= [];
+        offsetX= 1;
     case 2
         % Sehnensystem
-        T__(:, [1 2 3 4 nF-6+2 nF-6+3])= [];
+        xyz= 1:3;
+        free_xyz= setdiff(xyz, extentIdx);
+        T__(:, [1 2 3 3+extentIdx nF-6+free_xyz(1) nF-6+free_xyz(2)])= [];
+        offsetX= 3;
     otherwise
         error('Reference system number %d not known', ref_system);
 end
@@ -205,13 +237,17 @@ EF= sqrt(diag(D))/2/pi;
 %  C1= cell(ne, 1);
 %  for e= 1:ne
 %      le= data(e).dx;
-%  if isfield(data, 'A') && isfield(data, 'rho')
-%      me0= data(e).A * le * data(e).rho;
-%      me1= data(e+1).A * le * data(e).rho;
-%  else
-%      me0= data(e).me;
-%      me1= data(e+1).me;
-%  end
+%      if isfield(data, 'A') && isfield(data, 'rho')
+%          me01= getElementValue(data, e, 'A') * le * data(e).rho;
+%      else
+%          if isfield(data, 'mu')
+%              me01= getElementValue(data, e, 'mu') * le;
+%          else
+%              me01= getElementValue(data, e, 'me');
+%          end
+%      end
+%      me0= me01(1);
+%      me1= me01(2);
 %      C1= [[(le*me1+2*le*me0)/(6*le),0,0,0,0,0,(2*le^2*me1+le^2*me0)/(6*le^2),0,0,0,0,0];[0,(3*le*me1+7*le*me0)/(20*le),0,0,0,(2*le*me1+3*le*me0)/60,0,(7*le*me1+3*le*me0)/(20*le),0,0,0,-(3*le*me1+2*le*me0)/60];[0,0,(3*le*me1+7*le*me0)/(20*le),0,-(2*le*me1+3*le*me0)/60,0,0,0,(7*le*me1+3*le*me0)/(20*le),0,(3*le*me1+2*le*me0)/60,0]];
 
 %  end
@@ -236,7 +272,35 @@ for i= 1:nk
 end
 
 % (6.478) S. 366
-if exist('modes', 'var')
+if exist('modes', 'var') && ~isempty(modes)
+    if iscell(modes)
+        modes_= [];
+        for i= 1:length(modes)
+            mode_pair= modes{i};
+            switch length(mode_pair)
+                case 1
+                    modes_= [modes_ mode_pair];
+                case 2
+                    if abs(EF(mode_pair(1))-EF(mode_pair(2)))/max(EF(mode_pair)) > 1e-5
+                        error('Mode pair (%d, %d) does not have identical eigenvalues', mode_pair(1), mode_pair(2));
+                    end
+                    V= orthogonalizeV(V, mode_pair, offsetX);
+                    modes_= [modes_ mode_pair(:)'];                    
+                otherwise
+                    error('Currently no mode pairs with more than two elements are supported')
+            end
+        end
+        modes= modes_;
+    end
+    if exist('normalize', 'var')
+        switch normalize
+            case 1
+                V= normalize_to_last(V, modes, offsetX);
+            otherwise
+                error('Normalization method other than 1 currently not supported');
+        end
+    end
+    
     Se= T__*V(:, modes);
     sid.modes= modes;
 else
@@ -258,23 +322,39 @@ C3= cell(ne, 1);
 for e= 1:ne
     le= data(e).l;
     if isfield(data, 'A') && isfield(data, 'rho')
-        me0= data(e).A * le * data(e).rho;
-        me1= data(e+1).A * le * data(e).rho;
+        me01= getElementValue(data, e, 'A') * le * data(e).rho;
     else
-        me0= data(e).me;
-        me1= data(e+1).me;
+        if isfield(data, 'mu')
+            me01= getElementValue(data, e, 'mu') * le;
+        else
+            me01= getElementValue(data, e, 'me');
+        end
     end
+    me0= me01(1);
+    me1= me01(2);
     C3{e}= cell(3, 3);
 
-    C3{e}{1,1}= [[(le*me1+3*le*me0)/(12*le),0,0,0,0,0,(le^2*me1+le^2*me0)/(12*le^2),0,0,0,0,0];[0,0,0,0,0,0,0,0,0,0,0,0];[0,0,0,0,0,0,0,0,0,0,0,0];[0,0,0,0,0,0,0,0,0,0,0,0];[0,0,0,0,0,0,0,0,0,0,0,0];[0,0,0,0,0,0,0,0,0,0,0,0];[(le^2*me1+le^2*me0)/(12*le^2),0,0,0,0,0,(3*le^3*me1+le^3*me0)/(12*le^3),0,0,0,0,0];[0,0,0,0,0,0,0,0,0,0,0,0];[0,0,0,0,0,0,0,0,0,0,0,0];[0,0,0,0,0,0,0,0,0,0,0,0];[0,0,0,0,0,0,0,0,0,0,0,0];[0,0,0,0,0,0,0,0,0,0,0,0]];
-    C3{e}{1,2}= [[0,(5*le*me1+16*le*me0)/(60*le),0,0,0,(le*me1+2*le*me0)/60,0,(5*le*me1+4*le*me0)/(60*le),0,0,0,-(le*me1+le*me0)/60];[0,0,0,0,0,0,0,0,0,0,0,0];[0,0,0,0,0,0,0,0,0,0,0,0];[0,0,0,0,0,0,0,0,0,0,0,0];[0,0,0,0,0,0,0,0,0,0,0,0];[0,0,0,0,0,0,0,0,0,0,0,0];[0,(4*le^2*me1+5*le^2*me0)/(60*le^2),0,0,0,(le^2*me1+le^2*me0)/(60*le),0,(16*le^2*me1+5*le^2*me0)/(60*le^2),0,0,0,-(2*le^2*me1+le^2*me0)/(60*le)];[0,0,0,0,0,0,0,0,0,0,0,0];[0,0,0,0,0,0,0,0,0,0,0,0];[0,0,0,0,0,0,0,0,0,0,0,0];[0,0,0,0,0,0,0,0,0,0,0,0];[0,0,0,0,0,0,0,0,0,0,0,0]];
-    C3{e}{1,3}= [[0,0,(5*le*me1+16*le*me0)/(60*le),0,-(le*me1+2*le*me0)/60,0,0,0,(5*le*me1+4*le*me0)/(60*le),0,(le*me1+le*me0)/60,0];[0,0,0,0,0,0,0,0,0,0,0,0];[0,0,0,0,0,0,0,0,0,0,0,0];[0,0,0,0,0,0,0,0,0,0,0,0];[0,0,0,0,0,0,0,0,0,0,0,0];[0,0,0,0,0,0,0,0,0,0,0,0];[0,0,(4*le^2*me1+5*le^2*me0)/(60*le^2),0,-(le^2*me1+le^2*me0)/(60*le),0,0,0,(16*le^2*me1+5*le^2*me0)/(60*le^2),0,(2*le^2*me1+le^2*me0)/(60*le),0];[0,0,0,0,0,0,0,0,0,0,0,0];[0,0,0,0,0,0,0,0,0,0,0,0];[0,0,0,0,0,0,0,0,0,0,0,0];[0,0,0,0,0,0,0,0,0,0,0,0];[0,0,0,0,0,0,0,0,0,0,0,0]];
-    C3{e}{2,1}= [[0,0,0,0,0,0,0,0,0,0,0,0];[(5*le*me1+16*le*me0)/(60*le),0,0,0,0,0,(4*le^2*me1+5*le^2*me0)/(60*le^2),0,0,0,0,0];[0,0,0,0,0,0,0,0,0,0,0,0];[0,0,0,0,0,0,0,0,0,0,0,0];[0,0,0,0,0,0,0,0,0,0,0,0];[(le*me1+2*le*me0)/60,0,0,0,0,0,(le^2*me1+le^2*me0)/(60*le),0,0,0,0,0];[0,0,0,0,0,0,0,0,0,0,0,0];[(5*le*me1+4*le*me0)/(60*le),0,0,0,0,0,(16*le^2*me1+5*le^2*me0)/(60*le^2),0,0,0,0,0];[0,0,0,0,0,0,0,0,0,0,0,0];[0,0,0,0,0,0,0,0,0,0,0,0];[0,0,0,0,0,0,0,0,0,0,0,0];[-(le*me1+le*me0)/60,0,0,0,0,0,-(2*le^2*me1+le^2*me0)/(60*le),0,0,0,0,0]];
-    C3{e}{2,2}= [[0,0,0,0,0,0,0,0,0,0,0,0];[0,(3*le*me1+10*le*me0)/(35*le),0,0,0,(7*le*me1+15*le*me0)/420,0,(9*le*me1+9*le*me0)/(140*le),0,0,0,-(6*le*me1+7*le*me0)/420];[0,0,0,0,0,0,0,0,0,0,0,0];[0,0,0,0,0,0,0,0,0,0,0,0];[0,0,0,0,0,0,0,0,0,0,0,0];[0,(7*le*me1+15*le*me0)/420,0,0,0,(le*(3*le*me1+5*le*me0))/840,0,(7*le*me1+6*le*me0)/420,0,0,0,-(le*(le*me1+le*me0))/280];[0,0,0,0,0,0,0,0,0,0,0,0];[0,(9*le*me1+9*le*me0)/(140*le),0,0,0,(7*le*me1+6*le*me0)/420,0,(10*le*me1+3*le*me0)/(35*le),0,0,0,-(15*le*me1+7*le*me0)/420];[0,0,0,0,0,0,0,0,0,0,0,0];[0,0,0,0,0,0,0,0,0,0,0,0];[0,0,0,0,0,0,0,0,0,0,0,0];[0,-(6*le*me1+7*le*me0)/420,0,0,0,-(le*(le*me1+le*me0))/280,0,-(15*le*me1+7*le*me0)/420,0,0,0,(le*(5*le*me1+3*le*me0))/840]];
-    C3{e}{2,3}= [[0,0,0,0,0,0,0,0,0,0,0,0];[0,0,(3*le*me1+10*le*me0)/(35*le),0,-(7*le*me1+15*le*me0)/420,0,0,0,(9*le*me1+9*le*me0)/(140*le),0,(6*le*me1+7*le*me0)/420,0];[0,0,0,0,0,0,0,0,0,0,0,0];[0,0,0,0,0,0,0,0,0,0,0,0];[0,0,0,0,0,0,0,0,0,0,0,0];[0,0,(7*le*me1+15*le*me0)/420,0,-(le*(3*le*me1+5*le*me0))/840,0,0,0,(7*le*me1+6*le*me0)/420,0,(le*(le*me1+le*me0))/280,0];[0,0,0,0,0,0,0,0,0,0,0,0];[0,0,(9*le*me1+9*le*me0)/(140*le),0,-(7*le*me1+6*le*me0)/420,0,0,0,(10*le*me1+3*le*me0)/(35*le),0,(15*le*me1+7*le*me0)/420,0];[0,0,0,0,0,0,0,0,0,0,0,0];[0,0,0,0,0,0,0,0,0,0,0,0];[0,0,0,0,0,0,0,0,0,0,0,0];[0,0,-(6*le*me1+7*le*me0)/420,0,(le*(le*me1+le*me0))/280,0,0,0,-(15*le*me1+7*le*me0)/420,0,-(le*(5*le*me1+3*le*me0))/840,0]];
-    C3{e}{3,1}= [[0,0,0,0,0,0,0,0,0,0,0,0];[0,0,0,0,0,0,0,0,0,0,0,0];[(5*le*me1+16*le*me0)/(60*le),0,0,0,0,0,(4*le^2*me1+5*le^2*me0)/(60*le^2),0,0,0,0,0];[0,0,0,0,0,0,0,0,0,0,0,0];[-(le*me1+2*le*me0)/60,0,0,0,0,0,-(le^2*me1+le^2*me0)/(60*le),0,0,0,0,0];[0,0,0,0,0,0,0,0,0,0,0,0];[0,0,0,0,0,0,0,0,0,0,0,0];[0,0,0,0,0,0,0,0,0,0,0,0];[(5*le*me1+4*le*me0)/(60*le),0,0,0,0,0,(16*le^2*me1+5*le^2*me0)/(60*le^2),0,0,0,0,0];[0,0,0,0,0,0,0,0,0,0,0,0];[(le*me1+le*me0)/60,0,0,0,0,0,(2*le^2*me1+le^2*me0)/(60*le),0,0,0,0,0];[0,0,0,0,0,0,0,0,0,0,0,0]];
-    C3{e}{3,2}= [[0,0,0,0,0,0,0,0,0,0,0,0];[0,0,0,0,0,0,0,0,0,0,0,0];[0,(3*le*me1+10*le*me0)/(35*le),0,0,0,(7*le*me1+15*le*me0)/420,0,(9*le*me1+9*le*me0)/(140*le),0,0,0,-(6*le*me1+7*le*me0)/420];[0,0,0,0,0,0,0,0,0,0,0,0];[0,-(7*le*me1+15*le*me0)/420,0,0,0,-(le*(3*le*me1+5*le*me0))/840,0,-(7*le*me1+6*le*me0)/420,0,0,0,(le*(le*me1+le*me0))/280];[0,0,0,0,0,0,0,0,0,0,0,0];[0,0,0,0,0,0,0,0,0,0,0,0];[0,0,0,0,0,0,0,0,0,0,0,0];[0,(9*le*me1+9*le*me0)/(140*le),0,0,0,(7*le*me1+6*le*me0)/420,0,(10*le*me1+3*le*me0)/(35*le),0,0,0,-(15*le*me1+7*le*me0)/420];[0,0,0,0,0,0,0,0,0,0,0,0];[0,(6*le*me1+7*le*me0)/420,0,0,0,(le*(le*me1+le*me0))/280,0,(15*le*me1+7*le*me0)/420,0,0,0,-(le*(5*le*me1+3*le*me0))/840];[0,0,0,0,0,0,0,0,0,0,0,0]];
-    C3{e}{3,3}= [[0,0,0,0,0,0,0,0,0,0,0,0];[0,0,0,0,0,0,0,0,0,0,0,0];[0,0,(3*le*me1+10*le*me0)/(35*le),0,-(7*le*me1+15*le*me0)/420,0,0,0,(9*le*me1+9*le*me0)/(140*le),0,(6*le*me1+7*le*me0)/420,0];[0,0,0,0,0,0,0,0,0,0,0,0];[0,0,-(7*le*me1+15*le*me0)/420,0,(le*(3*le*me1+5*le*me0))/840,0,0,0,-(7*le*me1+6*le*me0)/420,0,-(le*(le*me1+le*me0))/280,0];[0,0,0,0,0,0,0,0,0,0,0,0];[0,0,0,0,0,0,0,0,0,0,0,0];[0,0,0,0,0,0,0,0,0,0,0,0];[0,0,(9*le*me1+9*le*me0)/(140*le),0,-(7*le*me1+6*le*me0)/420,0,0,0,(10*le*me1+3*le*me0)/(35*le),0,(15*le*me1+7*le*me0)/420,0];[0,0,0,0,0,0,0,0,0,0,0,0];[0,0,(6*le*me1+7*le*me0)/420,0,-(le*(le*me1+le*me0))/280,0,0,0,(15*le*me1+7*le*me0)/420,0,(le*(5*le*me1+3*le*me0))/840,0];[0,0,0,0,0,0,0,0,0,0,0,0]];
+    C3{e}{1,1}= [[(me1+3*me0)/12,0,0,0,0,0,(me1+me0)/12,0,0,0,0,0];[0,0,0,0,0,0,0,0,0,0,0,0];[0,0,0,0,0,0,0,0,0,0,0,0];[0,0,0,0,0,0,0,0,0,0,0,0];[0,0,0,0,0,0,0,0,0,0,0,0];[0,0,0,0,0,0,0,0,0,0,0,0];[(me1+me0)/12,0,0,0,0,0,(3*me1+me0)/12,0,0,0,0,0];[0,0,0,0,0,0,0,0,0,0,0,0];[0,0,0,0,0,0,0,0,0,0,0,0];[0,0,0,0,0,0,0,0,0,0,0,0];[0,0,0,0,0,0,0,0,0,0,0,0];[0,0,0,0,0,0,0,0,0,0,0,0]];
+    C3{e}{1,2}= [[0,(5*me1+16*me0)/60,0,0,0,(le*me1+2*le*me0)/60,0,(5*me1+4*me0)/60,0,0,0,-(le*me1+le*me0)/60];[0,0,0,0,0,0,0,0,0,0,0,0];[0,0,0,0,0,0,0,0,0,0,0,0];[0,0,0,0,0,0,0,0,0,0,0,0];[0,0,0,0,0,0,0,0,0,0,0,0];[0,0,0,0,0,0,0,0,0,0,0,0];[0,(4*me1+5*me0)/60,0,0,0,(le*me1+le*me0)/60,0,(16*me1+5*me0)/60,0,0,0,-(2*le*me1+le*me0)/60];[0,0,0,0,0,0,0,0,0,0,0,0];[0,0,0,0,0,0,0,0,0,0,0,0];[0,0,0,0,0,0,0,0,0,0,0,0];[0,0,0,0,0,0,0,0,0,0,0,0];[0,0,0,0,0,0,0,0,0,0,0,0]];
+    C3{e}{1,3}= [[0,0,(5*me1+16*me0)/60,0,-(le*me1+2*le*me0)/60,0,0,0,(5*me1+4*me0)/60,0,(le*me1+le*me0)/60,0];[0,0,0,0,0,0,0,0,0,0,0,0];[0,0,0,0,0,0,0,0,0,0,0,0];[0,0,0,0,0,0,0,0,0,0,0,0];[0,0,0,0,0,0,0,0,0,0,0,0];[0,0,0,0,0,0,0,0,0,0,0,0];[0,0,(4*me1+5*me0)/60,0,-(le*me1+le*me0)/60,0,0,0,(16*me1+5*me0)/60,0,(2*le*me1+le*me0)/60,0];[0,0,0,0,0,0,0,0,0,0,0,0];[0,0,0,0,0,0,0,0,0,0,0,0];[0,0,0,0,0,0,0,0,0,0,0,0];[0,0,0,0,0,0,0,0,0,0,0,0];[0,0,0,0,0,0,0,0,0,0,0,0]];
+    C3{e}{2,1}= [[0,0,0,0,0,0,0,0,0,0,0,0];[(5*me1+16*me0)/60,0,0,0,0,0,(4*me1+5*me0)/60,0,0,0,0,0];[0,0,0,0,0,0,0,0,0,0,0,0];[0,0,0,0,0,0,0,0,0,0,0,0];[0,0,0,0,0,0,0,0,0,0,0,0];[(le*me1+2*le*me0)/60,0,0,0,0,0,(le*me1+le*me0)/60,0,0,0,0,0];[0,0,0,0,0,0,0,0,0,0,0,0];[(5*me1+4*me0)/60,0,0,0,0,0,(16*me1+5*me0)/60,0,0,0,0,0];[0,0,0,0,0,0,0,0,0,0,0,0];[0,0,0,0,0,0,0,0,0,0,0,0];[0,0,0,0,0,0,0,0,0,0,0,0];[-(le*me1+le*me0)/60,0,0,0,0,0,-(2*le*me1+le*me0)/60,0,0,0,0,0]];
+    C3{e}{2,2}= [[0,0,0,0,0,0,0,0,0,0,0,0];[0,(3*me1+10*me0)/35,0,0,0,(7*le*me1+15*le*me0)/420,0,(9*me1+9*me0)/140,0,0,0,-(6*le*me1+7*le*me0)/420];[0,0,0,0,0,0,0,0,0,0,0,0];[0,0,0,0,0,0,0,0,0,0,0,0];[0,0,0,0,0,0,0,0,0,0,0,0];[0,(7*le*me1+15*le*me0)/420,0,0,0,(3*le^2*me1+5*le^2*me0)/840,0,(7*le*me1+6*le*me0)/420,0,0,0,-(le^2*me1+le^2*me0)/280];[0,0,0,0,0,0,0,0,0,0,0,0];[0,(9*me1+9*me0)/140,0,0,0,(7*le*me1+6*le*me0)/420,0,(10*me1+3*me0)/35,0,0,0,-(15*le*me1+7*le*me0)/420];[0,0,0,0,0,0,0,0,0,0,0,0];[0,0,0,0,0,0,0,0,0,0,0,0];[0,0,0,0,0,0,0,0,0,0,0,0];[0,-(6*le*me1+7*le*me0)/420,0,0,0,-(le^2*me1+le^2*me0)/280,0,-(15*le*me1+7*le*me0)/420,0,0,0,(5*le^2*me1+3*le^2*me0)/840]];
+    C3{e}{2,3}= [[0,0,0,0,0,0,0,0,0,0,0,0];[0,0,(3*me1+10*me0)/35,0,-(7*le*me1+15*le*me0)/420,0,0,0,(9*me1+9*me0)/140,0,(6*le*me1+7*le*me0)/420,0];[0,0,0,0,0,0,0,0,0,0,0,0];[0,0,0,0,0,0,0,0,0,0,0,0];[0,0,0,0,0,0,0,0,0,0,0,0];[0,0,(7*le*me1+15*le*me0)/420,0,-(3*le^2*me1+5*le^2*me0)/840,0,0,0,(7*le*me1+6*le*me0)/420,0,(le^2*me1+le^2*me0)/280,0];[0,0,0,0,0,0,0,0,0,0,0,0];[0,0,(9*me1+9*me0)/140,0,-(7*le*me1+6*le*me0)/420,0,0,0,(10*me1+3*me0)/35,0,(15*le*me1+7*le*me0)/420,0];[0,0,0,0,0,0,0,0,0,0,0,0];[0,0,0,0,0,0,0,0,0,0,0,0];[0,0,0,0,0,0,0,0,0,0,0,0];[0,0,-(6*le*me1+7*le*me0)/420,0,(le^2*me1+le^2*me0)/280,0,0,0,-(15*le*me1+7*le*me0)/420,0,-(5*le^2*me1+3*le^2*me0)/840,0]];
+    C3{e}{3,1}= [[0,0,0,0,0,0,0,0,0,0,0,0];[0,0,0,0,0,0,0,0,0,0,0,0];[(5*me1+16*me0)/60,0,0,0,0,0,(4*me1+5*me0)/60,0,0,0,0,0];[0,0,0,0,0,0,0,0,0,0,0,0];[-(le*me1+2*le*me0)/60,0,0,0,0,0,-(le*me1+le*me0)/60,0,0,0,0,0];[0,0,0,0,0,0,0,0,0,0,0,0];[0,0,0,0,0,0,0,0,0,0,0,0];[0,0,0,0,0,0,0,0,0,0,0,0];[(5*me1+4*me0)/60,0,0,0,0,0,(16*me1+5*me0)/60,0,0,0,0,0];[0,0,0,0,0,0,0,0,0,0,0,0];[(le*me1+le*me0)/60,0,0,0,0,0,(2*le*me1+le*me0)/60,0,0,0,0,0];[0,0,0,0,0,0,0,0,0,0,0,0]];
+    C3{e}{3,2}= [[0,0,0,0,0,0,0,0,0,0,0,0];[0,0,0,0,0,0,0,0,0,0,0,0];[0,(3*me1+10*me0)/35,0,0,0,(7*le*me1+15*le*me0)/420,0,(9*me1+9*me0)/140,0,0,0,-(6*le*me1+7*le*me0)/420];[0,0,0,0,0,0,0,0,0,0,0,0];[0,-(7*le*me1+15*le*me0)/420,0,0,0,-(3*le^2*me1+5*le^2*me0)/840,0,-(7*le*me1+6*le*me0)/420,0,0,0,(le^2*me1+le^2*me0)/280];[0,0,0,0,0,0,0,0,0,0,0,0];[0,0,0,0,0,0,0,0,0,0,0,0];[0,0,0,0,0,0,0,0,0,0,0,0];[0,(9*me1+9*me0)/140,0,0,0,(7*le*me1+6*le*me0)/420,0,(10*me1+3*me0)/35,0,0,0,-(15*le*me1+7*le*me0)/420];[0,0,0,0,0,0,0,0,0,0,0,0];[0,(6*le*me1+7*le*me0)/420,0,0,0,(le^2*me1+le^2*me0)/280,0,(15*le*me1+7*le*me0)/420,0,0,0,-(5*le^2*me1+3*le^2*me0)/840];[0,0,0,0,0,0,0,0,0,0,0,0]];
+    C3{e}{3,3}= [[0,0,0,0,0,0,0,0,0,0,0,0];[0,0,0,0,0,0,0,0,0,0,0,0];[0,0,(3*me1+10*me0)/35,0,-(7*le*me1+15*le*me0)/420,0,0,0,(9*me1+9*me0)/140,0,(6*le*me1+7*le*me0)/420,0];[0,0,0,0,0,0,0,0,0,0,0,0];[0,0,-(7*le*me1+15*le*me0)/420,0,(3*le^2*me1+5*le^2*me0)/840,0,0,0,-(7*le*me1+6*le*me0)/420,0,-(le^2*me1+le^2*me0)/280,0];[0,0,0,0,0,0,0,0,0,0,0,0];[0,0,0,0,0,0,0,0,0,0,0,0];[0,0,0,0,0,0,0,0,0,0,0,0];[0,0,(9*me1+9*me0)/140,0,-(7*le*me1+6*le*me0)/420,0,0,0,(10*me1+3*me0)/35,0,(15*le*me1+7*le*me0)/420,0];[0,0,0,0,0,0,0,0,0,0,0,0];[0,0,(6*le*me1+7*le*me0)/420,0,-(le^2*me1+le^2*me0)/280,0,0,0,(15*le*me1+7*le*me0)/420,0,(5*le^2*me1+3*le^2*me0)/840,0];[0,0,0,0,0,0,0,0,0,0,0,0]];
+    
+    % not 100% sure if this is correct
+    if isfield(data, 'Mlumped')
+        C3{e}{1,1}(1, 1)= C3{e}{1,1}(1, 1) + data(e).Mlumped;
+        C3{e}{2,2}(2, 2)= C3{e}{2,2}(2, 2) + data(e).Mlumped;
+        C3{e}{3,3}(3, 3)= C3{e}{3,3}(3, 3) + data(e).Mlumped;
+        if e==ne
+            C3{e}{1,1}(1+6, 1+6)= C3{e}{1,1}(1+6, 1+6) + data(e+1).Mlumped;
+            C3{e}{2,2}(2+6, 2+6)= C3{e}{2,2}(2+6, 2+6) + data(e+1).Mlumped;
+            C3{e}{3,3}(3+6, 3+6)= C3{e}{3,3}(3+6, 3+6) + data(e+1).Mlumped;
+        end
+    end
 end
 
 % (5.252) S. 233, (6.401) S. 338
@@ -343,7 +423,6 @@ for i= 1:6
         if b>3, b= 1; end
         KFom{i}= KFom_ab{a, b} + KFom_ab{a, b}';
     end
-    KFom{i}*ZF0
     Kom{i}= Se'*KFom{i}*Se;
 
     Kom0(:, i)= Se'*KFom{i}*ZF0;
@@ -364,9 +443,12 @@ Kinv= T__*KF__^-1*T__';
 
 % only axial stiffening
 % 6.330 S. 319
-Fendx= zeros(nF, 1); Fendx(end-nqk+1, 1)= 1; % tip loads only for now
-K0Fendx= Se'*geo_stiff(ne, nF, nqk, data, T, Kinv*Fendx)*Se; 
-K0txx= Se'*geo_stiff(ne, nF, nqk, data, T, -Kinv*T__*Ct0_(:, 1))*Se; 
+Fend_ax= zeros(nF, 1);
+Fend_ax(end-nqk+extentIdx, 1)= 1; % tip loads only for now
+K0Fend_ax= Se'*geo_stiff(ne, nF, nqk, data, T, -Kinv*Fend_ax)*Se; 
+K0t_ax= Se'*geo_stiff(ne, nF, nqk, data, T, -Kinv*T__*Ct0_(:, extentIdx))*Se;
+
+K0omxx= Se'*geo_stiff(ne, nF, nqk, data, T, -Kinv*T__*Kom0_(:, 1))*Se; 
 K0omyy= Se'*geo_stiff(ne, nF, nqk, data, T, -Kinv*T__*Kom0_(:, 2))*Se; 
 K0omzz= Se'*geo_stiff(ne, nF, nqk, data, T, -Kinv*T__*Kom0_(:, 3))*Se; 
 K0omxy= Se'*geo_stiff(ne, nF, nqk, data, T, -Kinv*T__*Kom0_(:, 4))*Se; 
@@ -374,10 +456,10 @@ K0omxz= Se'*geo_stiff(ne, nF, nqk, data, T, -Kinv*T__*Kom0_(:, 5))*Se;
 K0omyz= Se'*geo_stiff(ne, nF, nqk, data, T, -Kinv*T__*Kom0_(:, 6))*Se; 
 
 
-idx_t= [ones(3, ne); zeros(3, ne)];
-idx_t= logical(idx_t(:));
-idx_r= [zeros(3, ne); ones(3, ne)];
-idx_r= logical(idx_r(:));
+% idx_t= [ones(3, ne); zeros(3, ne)];
+% idx_t= logical(idx_t(:));
+% idx_r= [zeros(3, ne); ones(3, ne)];
+% idx_r= logical(idx_r(:));
 
 if isunix
     [~, user_name] = system('whoami'); % exists on every unix that I know of
@@ -386,6 +468,7 @@ elseif ispc
     [~, user_name] = system('echo %USERDOMAIN%\%USERNAME%'); % Not as familiar with windows,
     % found it on the net elsewhere, you might want to verify
 end
+user_name= strrep(user_name, char(10), '');
 
 if exist('modes', 'var')
     sid.comment= sprintf('%d nodes, %d modes, generated by FEMBeam2SID MATLAB script on %s by %s', nk, nq, datestr(now), user_name);
@@ -428,10 +511,11 @@ for i= 1:nk
     sid.frame(i).Phi.M0= Phi*Se; % node translations (6.46),(6.80), (6.337), (5.122), (6.415)
     if i==nk
         sid.frame(i).Phi.order= 1;
-        sid.frame(i).Phi.M1(1, :, :)= K0Fendx; % stiffening due to force (6.46),(6.80), (6.337), (5.122), (6.415)
-        sid.frame(i).Phi.M1(2, :, :)= 0*K0Fendx;
-        sid.frame(i).Phi.M1(3, :, :)= 0*K0Fendx;
-        end
+        sid.frame(i).Phi.M1(1, :, :)= 0*K0Fend_ax; % stiffening due to force (6.46),(6.80), (6.337), (5.122), (6.415)
+        sid.frame(i).Phi.M1(2, :, :)= 0*K0Fend_ax;
+        sid.frame(i).Phi.M1(3, :, :)= 0*K0Fend_ax;
+        sid.frame(i).Phi.M1(extentIdx, :, :)= K0Fend_ax;        
+    end
     
     sid.frame(i).Psi= emptyTaylor(0, 3, nq, nq, 0, 3);
     sid.frame(i).Psi.M0= Psi*Se; % node rotations (6.81), (6.337)
@@ -477,9 +561,10 @@ end
 % sid.Ct
 sid.Ct= emptyTaylor(1, nq, 3, nq, 0, 3);
 sid.Ct.M0= Ct0;
-sid.Ct.M1(:, 1, :)= K0txx;
-sid.Ct.M1(:, 2, :)= 0*K0txx;
-sid.Ct.M1(:, 3, :)= 0*K0txx;
+sid.Ct.M1(:, 1, :)= 0*K0t_ax;
+sid.Ct.M1(:, 2, :)= 0*K0t_ax;
+sid.Ct.M1(:, 3, :)= 0*K0t_ax;
+sid.Ct.M1(:, extentIdx, :)= K0t_ax;
 % sid.Cr
 sid.Cr= emptyTaylor(1, nq, 3, nq, 0, 3);
 sid.Cr.M0= Cr0;
@@ -501,7 +586,7 @@ end
 %  sid.Oe (6.407)
 sid.Oe= emptyTaylor(1, nq, 6, nq, 0, 3);
 sid.Oe.M0= Kom0;
-sid.Oe.M1(:, 1, :)= Kom{1};
+sid.Oe.M1(:, 1, :)= Kom{1}+K0omxx;
 sid.Oe.M1(:, 2, :)= Kom{2}+K0omyy;
 sid.Oe.M1(:, 3, :)= Kom{3}+K0omzz;
 sid.Oe.M1(:, 4, :)= Kom{4}+K0omxy;
@@ -532,9 +617,6 @@ function KFsigma_sharp= geo_stiff(ne, nF, nqk, data, T, zF)
 % BL macht aus Knotenkoordinaten Dehnung (eps_xx)
 % E bzw. H und BL sind schon in K_G1_ux1 + K_G1_ux2 enthalten
 
-ux1= zF(1:nqk:end-nqk);
-ux2= zF(nqk+1:nqk:end);
-
 KFsigma_sharp= zeros(nF);
 for e= 1:ne
     le= data(e).l;
@@ -543,63 +625,22 @@ for e= 1:ne
     else
         E= 214e9;
     end
-    if isfield(data, 'G')
-        G= data(e).G;
-    else
-        G= E/2/(1+0.3);
-    end
     if isfield(data, 'A')
-        A0= data(e).A;
-        A1= data(e+1).A;
+        A01= getElementValue(data, e, 'A');
     else
         if isfield(data, 'EA')
-            A0= data(e).EA / E;
-            A1= data(e+1).EA / E;
+            A01= getElementValue(data, e, 'EA') / E;
         else
-            A0= 100; % very stiff
-            A1= 100; % very stiff
+            A01= [100, 100]; % very stiff
         end
     end
-    if isfield(data, 'Iy')
-        Iy0= data(e).Iy;
-        Iy1= data(e+1).Iy;
-    else 
-        if isfield(data, 'EIy')
-            Iy0= data(e).EIy / E;
-            Iy1= data(e+1).EIy / E;
-        else
-            Iy0= 100; % very stiff
-            Iy1= 100; % very stiff
-        end
-    end
-    if isfield(data, 'Iz')
-        Iz0= data(e).Iz;
-        Iz1= data(e+1).Iz;
-    else 
-        if isfield(data, 'EIz')
-            Iz0= data(e).EIz / E;
-            Iz1= data(e+1).EIz / E;
-        else
-            Iz0= 100; % very stiff
-            Iz1= 100; % very stiff
-        end
-    end
-    if isfield(data, 'Ip')
-        Ip0= data(e).Ip;
-        Ip1= data(e+1).Ip;
-    else
-        if isfield(data, 'GIp')
-            Ip0= data(e).EIp / G;
-            Ip1= data(e+1).EIp / G;
-        else
-            Ip0= 100; % very stiff
-            Ip1= 100; % very stiff
-        end
-    end
-    
-    K_Ge_ux1_lin= [[0,0,0,0,0,0,0,0,0,0,0,0];[0,(E*((-(6*A1)/(5*le))-(6*A0)/(5*le)))/(2*le),0,0,0,-(A1*E)/(10*le),0,(E*((6*A1)/(5*le)+(6*A0)/(5*le)))/(2*le),0,0,0,-(A0*E)/(10*le)];[0,0,(E*((-(6*A1)/(5*le))-(6*A0)/(5*le)))/(2*le),0,(A1*E)/(10*le),0,0,0,(E*((6*A1)/(5*le)+(6*A0)/(5*le)))/(2*le),0,(A0*E)/(10*le),0];[0,0,0,0,0,0,0,0,0,0,0,0];[0,0,(A1*E)/(10*le),0,(E*((-(A1*le)/15)-(A0*le)/5))/(2*le),0,0,0,-(A1*E)/(10*le),0,(E*((A1*le)/30+(A0*le)/30))/(2*le),0];[0,-(A1*E)/(10*le),0,0,0,(E*((-(A1*le)/15)-(A0*le)/5))/(2*le),0,(A1*E)/(10*le),0,0,0,(E*((A1*le)/30+(A0*le)/30))/(2*le)];[0,0,0,0,0,0,0,0,0,0,0,0];[0,(E*((6*A1)/(5*le)+(6*A0)/(5*le)))/(2*le),0,0,0,(A1*E)/(10*le),0,(E*((-(6*A1)/(5*le))-(6*A0)/(5*le)))/(2*le),0,0,0,(A0*E)/(10*le)];[0,0,(E*((6*A1)/(5*le)+(6*A0)/(5*le)))/(2*le),0,-(A1*E)/(10*le),0,0,0,(E*((-(6*A1)/(5*le))-(6*A0)/(5*le)))/(2*le),0,-(A0*E)/(10*le),0];[0,0,0,0,0,0,0,0,0,0,0,0];[0,0,(A0*E)/(10*le),0,(E*((A1*le)/30+(A0*le)/30))/(2*le),0,0,0,-(A0*E)/(10*le),0,(E*((-(A1*le)/5)-(A0*le)/15))/(2*le),0];[0,-(A0*E)/(10*le),0,0,0,(E*((A1*le)/30+(A0*le)/30))/(2*le),0,(A0*E)/(10*le),0,0,0,(E*((-(A1*le)/5)-(A0*le)/15))/(2*le)]];
-    K_Ge_ux2_lin= [[0,0,0,0,0,0,0,0,0,0,0,0];[0,(E*((6*A1)/(5*le)+(6*A0)/(5*le)))/(2*le),0,0,0,(A1*E)/(10*le),0,(E*((-(6*A1)/(5*le))-(6*A0)/(5*le)))/(2*le),0,0,0,(A0*E)/(10*le)];[0,0,(E*((6*A1)/(5*le)+(6*A0)/(5*le)))/(2*le),0,-(A1*E)/(10*le),0,0,0,(E*((-(6*A1)/(5*le))-(6*A0)/(5*le)))/(2*le),0,-(A0*E)/(10*le),0];[0,0,0,0,0,0,0,0,0,0,0,0];[0,0,-(A1*E)/(10*le),0,(E*((A1*le)/15+(A0*le)/5))/(2*le),0,0,0,(A1*E)/(10*le),0,(E*((-(A1*le)/30)-(A0*le)/30))/(2*le),0];[0,(A1*E)/(10*le),0,0,0,(E*((A1*le)/15+(A0*le)/5))/(2*le),0,-(A1*E)/(10*le),0,0,0,(E*((-(A1*le)/30)-(A0*le)/30))/(2*le)];[0,0,0,0,0,0,0,0,0,0,0,0];[0,(E*((-(6*A1)/(5*le))-(6*A0)/(5*le)))/(2*le),0,0,0,-(A1*E)/(10*le),0,(E*((6*A1)/(5*le)+(6*A0)/(5*le)))/(2*le),0,0,0,-(A0*E)/(10*le)];[0,0,(E*((-(6*A1)/(5*le))-(6*A0)/(5*le)))/(2*le),0,(A1*E)/(10*le),0,0,0,(E*((6*A1)/(5*le)+(6*A0)/(5*le)))/(2*le),0,(A0*E)/(10*le),0];[0,0,0,0,0,0,0,0,0,0,0,0];[0,0,-(A0*E)/(10*le),0,(E*((-(A1*le)/30)-(A0*le)/30))/(2*le),0,0,0,(A0*E)/(10*le),0,(E*((A1*le)/5+(A0*le)/15))/(2*le),0];[0,(A0*E)/(10*le),0,0,0,(E*((-(A1*le)/30)-(A0*le)/30))/(2*le),0,-(A0*E)/(10*le),0,0,0,(E*((A1*le)/5+(A0*le)/15))/(2*le)]];
-    KFsigma_sharp_e= K_Ge_ux1_lin*ux1(e) + K_Ge_ux2_lin*ux2(e);
+    A0= A01(1);
+    A1= A01(2);
+
+    K_Ge_ux1_lin= [[0,0,0,0,0,0,0,0,0,0,0,0];[0,-((3*A1+3*A0)*E)/(5*le^2),0,0,0,-(A1*E)/(10*le),0,((3*A1+3*A0)*E)/(5*le^2),0,0,0,-(A0*E)/(10*le)];[0,0,-((3*A1+3*A0)*E)/(5*le^2),0,(A1*E)/(10*le),0,0,0,((3*A1+3*A0)*E)/(5*le^2),0,(A0*E)/(10*le),0];[0,0,0,0,0,0,0,0,0,0,0,0];[0,0,(A1*E)/(10*le),0,-((A1+3*A0)*E)/30,0,0,0,-(A1*E)/(10*le),0,((A1+A0)*E)/60,0];[0,-(A1*E)/(10*le),0,0,0,-((A1+3*A0)*E)/30,0,(A1*E)/(10*le),0,0,0,((A1+A0)*E)/60];[0,0,0,0,0,0,0,0,0,0,0,0];[0,((3*A1+3*A0)*E)/(5*le^2),0,0,0,(A1*E)/(10*le),0,-((3*A1+3*A0)*E)/(5*le^2),0,0,0,(A0*E)/(10*le)];[0,0,((3*A1+3*A0)*E)/(5*le^2),0,-(A1*E)/(10*le),0,0,0,-((3*A1+3*A0)*E)/(5*le^2),0,-(A0*E)/(10*le),0];[0,0,0,0,0,0,0,0,0,0,0,0];[0,0,(A0*E)/(10*le),0,((A1+A0)*E)/60,0,0,0,-(A0*E)/(10*le),0,-((3*A1+A0)*E)/30,0];[0,-(A0*E)/(10*le),0,0,0,((A1+A0)*E)/60,0,(A0*E)/(10*le),0,0,0,-((3*A1+A0)*E)/30]];
+    K_Ge_ux2_lin= [[0,0,0,0,0,0,0,0,0,0,0,0];[0,((3*A1+3*A0)*E)/(5*le^2),0,0,0,(A1*E)/(10*le),0,-((3*A1+3*A0)*E)/(5*le^2),0,0,0,(A0*E)/(10*le)];[0,0,((3*A1+3*A0)*E)/(5*le^2),0,-(A1*E)/(10*le),0,0,0,-((3*A1+3*A0)*E)/(5*le^2),0,-(A0*E)/(10*le),0];[0,0,0,0,0,0,0,0,0,0,0,0];[0,0,-(A1*E)/(10*le),0,((A1+3*A0)*E)/30,0,0,0,(A1*E)/(10*le),0,-((A1+A0)*E)/60,0];[0,(A1*E)/(10*le),0,0,0,((A1+3*A0)*E)/30,0,-(A1*E)/(10*le),0,0,0,-((A1+A0)*E)/60];[0,0,0,0,0,0,0,0,0,0,0,0];[0,-((3*A1+3*A0)*E)/(5*le^2),0,0,0,-(A1*E)/(10*le),0,((3*A1+3*A0)*E)/(5*le^2),0,0,0,-(A0*E)/(10*le)];[0,0,-((3*A1+3*A0)*E)/(5*le^2),0,(A1*E)/(10*le),0,0,0,((3*A1+3*A0)*E)/(5*le^2),0,(A0*E)/(10*le),0];[0,0,0,0,0,0,0,0,0,0,0,0];[0,0,-(A0*E)/(10*le),0,-((A1+A0)*E)/60,0,0,0,(A0*E)/(10*le),0,((3*A1+A0)*E)/30,0];[0,(A0*E)/(10*le),0,0,0,-((A1+A0)*E)/60,0,-(A0*E)/(10*le),0,0,0,((3*A1+A0)*E)/30]];
+    ux= T{e}*zF;
+    KFsigma_sharp_e= K_Ge_ux1_lin*ux(1) + K_Ge_ux2_lin*ux(1+6);
     % 5.208 S. 222
     KFsigma_sharp= KFsigma_sharp + T{e}'*KFsigma_sharp_e*T{e};
 end
@@ -612,3 +653,53 @@ t.nq= nq;
 t.nqn= nqn;
 t.structure= str;
 
+function v= getElementValue(data, i, element)
+if ~isfield(data, 'node_interpolation')
+    node_interpolation= 'linear';
+else
+    node_interpolation= data(i).node_interpolation;
+end
+switch node_interpolation
+    case 'mean'
+        v= [0.5 0.5]*(data(i).(element)+data(i+1).(element));
+    case 'left'
+        v= [data(i).(element) data(i).(element)];
+    case 'right'
+        v= [data(i+1).(element) data(i+1).(element)];
+    case 'linear'
+        v= [data(i).(element) data(i+1).(element)];
+    otherwise
+        error('Unknown node interpolation method "%s"', node_interpolation);
+end    
+
+function V= orthogonalizeV(V, mode_pair, offsetX)
+m1= xyzMagnitude(V(:, mode_pair(1)), offsetX);
+[~, idx]= sort(m1, 'descend');
+T(1, 1)= sum(V(offsetX+idx(1)-1:6:end, mode_pair(1)));
+T(1, 2)= sum(V(offsetX+idx(2)-1:6:end, mode_pair(1)));
+T(2, 1)= sum(V(offsetX+idx(1)-1:6:end, mode_pair(2)));
+T(2, 2)= sum(V(offsetX+idx(2)-1:6:end, mode_pair(2)));
+
+V1= T(1, 1)*V(:, mode_pair(1)) + T(2, 1)*V(:, mode_pair(2));
+V2= T(1, 2)*V(:, mode_pair(1)) + T(2, 2)*V(:, mode_pair(2));
+
+V(:, mode_pair(1))= V1;
+V(:, mode_pair(2))= V2;
+
+function V= normalize_to_last(V, modes, offsetX)
+for i= 1:length(modes)
+    mode= modes(i);
+    
+    m= xyzMagnitude(V(:, mode), offsetX);
+    [~, normtoIdx]= max(m);
+    v_= V(offsetX+normtoIdx-1:6:end, mode);
+    V(:, mode)= V(:, mode)/v_(end);
+end
+
+function m= xyzMagnitude(v, offsetX)
+% TODO also consider torsion modes
+m(1)= sum(abs(v(offsetX:6:end)));
+offsetY= offsetX+1;
+m(2)= sum(abs(v(offsetY:6:end)));
+offsetZ= offsetY+1;
+m(3)= sum(abs(v(offsetZ:6:end)));
