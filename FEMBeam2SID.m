@@ -131,6 +131,12 @@ for e= 1:ne
             M{e}(3+6, 3+6)= M{e}(3+6, 3+6) + data(e+1).Mlumped;
         end
     end
+    if isfield(data, 'Ilumped')
+        M{e}(4:6, 4:6)= M{e}(4:6, 4:6) + data(e).Ilumped;
+        if e==ne
+            M{e}(4:6+6, 4:6+6)= M{e}(4:6+6, 4:6+6) + data(e+1).Ilumped;
+        end
+    end
 end
 
 MF= zeros(nF);
@@ -215,9 +221,22 @@ if ~exist('ref_system', 'var') && ~isempty(ref_system)
 end
 switch ref_system
     case 1
-        % fixed base
-        T__(:, 1:nqk)= [];
-        offsetX= 1;
+        if isfield(data, 'K_foundation')
+            if prod(size(data.K_foundation))==length(data.K_foundation)
+                data.K_foundation= diag(data.K_foundation);
+            end
+            for i= 1:6
+                if isinf(data.K_foundation(i, i))
+                    T__(:, i)= [];
+                end
+            end
+            KF(1:6, 1:6)= KF(1:6, 1:6) + data.K_foundation;
+            offsetX= 7 - sum(isinf(diag(data.K_foundation)));
+        else    
+            % fixed base
+            T__(:, 1:nqk)= [];
+            offsetX= 1;
+        end
     case 2
         % Sehnensystem
         xyz= 1:3;
@@ -272,7 +291,7 @@ for i= 1:nk
 end
 
 % (6.478) S. 366
-<<<<<<< .mineif exist('modes', 'var') && ~isempty(modes)
+if exist('modes', 'var') && ~isempty(modes)
     if iscell(modes)
         modes_= [];
         for i= 1:length(modes)
@@ -301,16 +320,7 @@ end
         end
     end
     
-=======if exist('modes', 'var') && ~isempty(modes)
-    if exist('normalize', 'var')
-        if length(normalize)~=length(modes)
-            error('argument "normalize" must have the same size as modes')
-        end
-        for i= 1:length(modes)
-            V(:, modes(i))= V(:, modes(i))/V(end-6+normalize(i), i);
-        end
-    end
->>>>>>> .theirs    Se= T__*V(:, modes);
+    Se= T__*V(:, modes);
     sid.modes= modes;
 else
     Se= T__;
