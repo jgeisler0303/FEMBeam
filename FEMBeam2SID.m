@@ -14,7 +14,7 @@
 %  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 % Equation and page numbers refer to
-% Schwertassek, R & Wallrapp, O. (1999). Dynamik flexibler Mehrkörpersysteme.
+% Schwertassek, R & Wallrapp, O. (1999). Dynamik flexibler MehrkÃ¶rpersysteme.
 
 function sid= FEMBeam2SID(data, ref_system, modes, normalize)
 ne= length(data)-1;
@@ -252,6 +252,8 @@ KF__= T__'*KF*T__;
 
 [V, D]= eig(KF__, MF__);
 EF= sqrt(diag(D))/2/pi;
+[EF, ef_idx]= sort(EF);
+V= V(:, ef_idx);
 
 %  C1= cell(ne, 1);
 %  for e= 1:ne

@@ -59,7 +59,18 @@ if symbolic<2
     end
     fprintf(fid, '\n');
 end
-% TODO: write frame data
+
+frames= '';
+for i= 1:length(sid.frame)
+    if exist('nodes', 'var') && ~ismember(i, nodes), continue; end
+        
+    write_frame(fid, sprintf('%s@frame[%d]', body_name, i), sid.refmod.nelastq, sid.frame(i), threshold, symbolic);
+    frames= sprintf('%s, frame[%d]', frames, i);
+end
+if symbolic<2
+    fprintf(fid, '%s@frame: [%s];\n\n', body_name, frames(3:end))
+end
+
 
 write_taylor(fid, body_name, 'md', sid.md, false, threshold, symbolic);
 write_taylor(fid, body_name, 'I', sid.I, false, threshold, symbolic);
@@ -75,19 +86,40 @@ write_taylor(fid, body_name, 'D', sid.De, false, threshold, symbolic);
 
 fclose(fid);
 
-%  function write_frame(f, fid, indent)
-%  fprintf(fid, '%snew node   = %s\n', indent, f.node);
-%  
-%  fprintf(fid, '%s    rframe = %s\n', indent, f.rframe);
-%  write_taylor('origin', f.origin, fid, [indent '    ']);
-%  write_taylor(fid, 'phi', f.Phi, [indent '    ']);
-%  write_taylor(fid, 'psi', f.Psi, [indent '    ']);
-%  write_taylor(fid, 'AP', f.AP, [indent '    ']);
-%  if isfield(f, 'sigma')
-%      write_taylor(fid, 'sigma', f.sigma, [indent '    ']);
-%  end
-%  
-%  fprintf(fid, '%send node\n', indent);
+function write_frame(fid, name, nelastq, f, threshold, symbolic)
+if symbolic<2
+    p= strfind(name, '@');
+    name_= name(p(1)+1:end);
+    fprintf(fid, '%s: emptyElasticFrame(%d, "node%s");\n', name_, nelastq, f.node);
+    name= ['-' name];
+end
+write_taylor(fid, name, 'origin', f.origin, false, threshold, symbolic);
+if symbolic==0
+    write_taylor(fid, name, 'ap', f.AP, false, threshold, symbolic);
+elseif symbolic==1
+    AP= f.AP;
+    AP.order= 0;
+    write_taylor(fid, name, 'ap', AP, false, threshold, symbolic);
+    
+    cross_idx= [3, 2; 1, 3; 2, 1];
+    for k= 1:f.AP.nq
+        for i= 1:3
+            if abs(f.Psi.M0(i, k))<threshold, continue; end
+            psi_name= sprintf('%spsi0_%d_%d', strrep(strrep(strrep(name(2:end), '@', '_'), '[', '_'), ']', '_'), i, k);
+            % special hack to compose the frame before assigning it
+            fprintf(fid, '%s@ap@M1[%d][%d, %d]: %s;\n', name_, k, cross_idx(i, 1), cross_idx(i, 2), psi_name);
+            fprintf(fid, '%s@ap@M1[%d][%d, %d]: -%s;\n', name_, k, cross_idx(i, 2), cross_idx(i, 1), psi_name);
+        end
+    end
+    fprintf(fid, '\n');
+end
+write_taylor(fid, name, 'phi', f.Phi, false, threshold, symbolic);
+write_taylor(fid, name, 'psi', f.Psi, false, threshold, symbolic);
+if isfield(f, 'sigma')
+    write_taylor(fid, name, 'sigma', f.sigma, false, threshold, symbolic);
+end
+
+fprintf(fid, '\n');
 
 
 function write_taylor(fid, name, var_name, t, with_sub_idx, threshold, symbolic)
@@ -143,9 +175,17 @@ else
 end
 
 function write_parameter(fid, name, value, symbolic)
+% special hack to compose the frame before assigning it
+if name(1)=='-'
+    p= strfind(name, '@');
+    name_= name(p(1)+1:end);
+    name= name(2:end);
+else
+    name_= name;
+end
 switch symbolic
     case 0
-        fprintf(fid, '%s: %g\n', name, value);
+        fprintf(fid, '%s: %g;\n', name_, value);
     case 1
         s_name= name;
         s_name= strrep(s_name, '@M0', '0');
@@ -155,7 +195,7 @@ switch symbolic
         s_name= strrep(s_name, '[', '_');
         s_name= strrep(s_name, ']', '');
         s_name= strrep(s_name, ', ', '_');
-        fprintf(fid, '%s: %s;\n', name, s_name);
+        fprintf(fid, '%s: %s;\n', name_, s_name);
     case 2
         s_name= name;
         s_name= strrep(s_name, '@M0', '0');
