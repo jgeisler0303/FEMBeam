@@ -694,12 +694,10 @@ switch node_interpolation
 end    
 
 function V= orthogonalizeV(V, mode_pair, offsetX)
-m1= xyzMagnitude(V(:, mode_pair(1)), offsetX);
-[~, idx]= sort(m1, 'descend');
-T(1, 1)= sum(V(offsetX+idx(1)-1:6:end, mode_pair(1)));
-T(1, 2)= sum(V(offsetX+idx(2)-1:6:end, mode_pair(1)));
-T(2, 1)= sum(V(offsetX+idx(1)-1:6:end, mode_pair(2)));
-T(2, 2)= sum(V(offsetX+idx(2)-1:6:end, mode_pair(2)));
+T(1, 1)= sum(V(offsetX  :6:end, mode_pair(1)));
+T(1, 2)= sum(V(offsetX+1:6:end, mode_pair(1)));
+T(2, 1)= sum(V(offsetX  :6:end, mode_pair(2)));
+T(2, 2)= sum(V(offsetX+1:6:end, mode_pair(2)));
 
 V1= T(1, 1)*V(:, mode_pair(1)) + T(2, 1)*V(:, mode_pair(2));
 V2= T(1, 2)*V(:, mode_pair(1)) + T(2, 2)*V(:, mode_pair(2));

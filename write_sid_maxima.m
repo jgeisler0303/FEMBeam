@@ -61,14 +61,20 @@ if symbolic<2
 end
 
 frames= '';
-for i= 1:length(sid.frame)
-    if exist('nodes', 'var') && ~ismember(i, nodes), continue; end
-        
-    write_frame(fid, sprintf('%s@frame[%d]', body_name, i), sid.refmod.nelastq, sid.frame(i), threshold, symbolic);
-    frames= sprintf('%s, frame[%d]', frames, i);
+if exist('nodes', 'var') && isnumeric(nodes)
+    for i= 1:length(sid.frame)
+        if ~ismember(i, nodes), continue; end
+
+        write_frame(fid, sprintf('%s@frame[%d]', body_name, i), sid.refmod.nelastq, sid.frame(i), threshold, symbolic);
+        frames= sprintf('%s, frame[%d]', frames, i);
+    end
+end
+if exist('nodes', 'var') && ischar(nodes) && strcmp(nodes, 'last')
+    write_frame(fid, sprintf('%s@frame[last]', body_name), sid.refmod.nelastq, sid.frame(length(sid.frame)), threshold, symbolic);
+    frames= '  frame[last]';
 end
 if symbolic<2
-    fprintf(fid, '%s@frame: [%s];\n\n', body_name, frames(3:end))
+    fprintf(fid, '%s@frame: [%s];\n\n', body_name, frames(3:end));
 end
 
 
