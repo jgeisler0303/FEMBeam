@@ -302,11 +302,14 @@ if exist('modes', 'var') && ~isempty(modes)
                 case 1
                     modes_= [modes_ mode_pair];
                 case 2
+                    keep_mode= mode_pair>0;
+                    mode_pair= abs(mode_pair);
+                    
                     if abs(EF(mode_pair(1))-EF(mode_pair(2)))/max(EF(mode_pair)) > 1e-5
                         error('Mode pair (%d, %d) does not have identical eigenvalues', mode_pair(1), mode_pair(2));
                     end
                     V= orthogonalizeV(V, mode_pair, offsetX);
-                    modes_= [modes_ mode_pair(:)'];                    
+                    modes_= [modes_ mode_pair(keep_mode(:))'];                    
                 otherwise
                     error('Currently no mode pairs with more than two elements are supported')
             end
