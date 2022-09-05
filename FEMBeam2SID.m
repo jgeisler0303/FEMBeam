@@ -58,6 +58,7 @@ for i= 1:ne
     data(i).t= dx/data(i).l;
     if i==1
         t_last= data(1).t;
+        t_origin= data(1).t;
         % start for the normal
         % for t pointing in x or z direction, h will be in y direction
         % for t pointing in y direction, h will be in -x direction
@@ -77,6 +78,13 @@ for i= 1:ne
     if isfield(data, 'phi')
         % rotation about t
         R= cos(data(i).phi)*eye(3) + sin(data(i).phi)*crossmat(data(i).t) + (1-cos(data(i).phi))*data(i).t*data(i).t';
+        data(i).h= R * data(i).h;
+    end
+    
+    % add twist, angle about origin
+    if isfield(data, 'phi_o')
+        % rotation about t_origin
+        R= cos(data(i).phi_o)*eye(3) + sin(data(i).phi_o)*crossmat(t_origin) + (1-cos(data(i).phi_o))*(t_origin*t_origin');
         data(i).h= R * data(i).h;
     end
     
@@ -222,7 +230,7 @@ end
 switch ref_system
     case 1
         if isfield(data, 'K_foundation')
-            if prod(size(data.K_foundation))==length(data.K_foundation)
+            if numel(data.K_foundation)==length(data.K_foundation)
                 data.K_foundation= diag(data.K_foundation);
             end
             for i= 1:6
@@ -383,6 +391,7 @@ end
 
 % (5.252) S. 233, (6.401) S. 338
 KFr= cell(3, 1);
+% TODO: there must be something wrong here, Kr is probably transposed
 Kr= cell(3, 1);
 for a= 1:3
     KFr{a}= zeros(nF);
@@ -668,14 +677,6 @@ for e= 1:ne
     % 5.208 S. 222
     KFsigma_sharp= KFsigma_sharp + T{e}'*KFsigma_sharp_e*T{e};
 end
-
-function t= emptyTaylor(order, nrow, ncol, nq, nqn, str)
-t.order= order;
-t.nrow= nrow;
-t.ncol= ncol;
-t.nq= nq;
-t.nqn= nqn;
-t.structure= str;
 
 function v= getElementValue(data, i, element)
 if ~isfield(data, 'node_interpolation')
