@@ -1,0 +1,66 @@
+function param= FAST2SID_direct(param, fst_file)
+
+p= FASTCoeff(fst_file);
+
+param.blade_Cr0_1_1= -sum((p.RNodes'+p.HubRad).*squeeze(p.TwistedSF(1, 2, 1, 2:end-1, 1)).*p.BElmntMass(:, 1)); % 1st mode acceleration about x axis (1) -> movement in negative y
+param.blade_Cr0_1_2= sum((p.RNodes'+p.HubRad).*squeeze(p.TwistedSF(1, 1, 1, 2:end-1, 1)).*p.BElmntMass(:, 1));  % 1st mode  acceleration about y axis (2) -> movement in x
+param.blade_Cr0_2_1= -sum((p.RNodes'+p.HubRad).*squeeze(p.TwistedSF(1, 2, 3, 2:end-1, 1)).*p.BElmntMass(:, 1)); % 2nd mode acceleration about x axis (1) -> movement in negative y
+param.blade_Cr0_2_2= sum((p.RNodes'+p.HubRad).*squeeze(p.TwistedSF(1, 1, 3, 2:end-1, 1)).*p.BElmntMass(:, 1));  % 2nd mode  acceleration about y axis (2) -> movement in x
+param.blade_Ct0_1_1= sum(squeeze(p.TwistedSF(1, 1, 1, 2:end-1, 1)).*p.BElmntMass(:, 1)); % 1st mode acceleration in x
+param.blade_Ct0_1_2= sum(squeeze(p.TwistedSF(1, 2, 1, 2:end-1, 1)).*p.BElmntMass(:, 1)); % 1st mode acceleration in y
+param.blade_Ct0_2_1= sum(squeeze(p.TwistedSF(1, 1, 3, 2:end-1, 1)).*p.BElmntMass(:, 1)); % 2nd mode acceleration in x
+param.blade_Ct0_2_2= sum(squeeze(p.TwistedSF(1, 2, 3, 2:end-1, 1)).*p.BElmntMass(:, 1)); % 2nd mode acceleration in y
+param.blade_D0_1_1= p.CBF(1, 1, 1);
+param.blade_D0_2_2= p.CBE(1);
+param.blade_I0_1_1= sum(p.BElmntMass(:, 1).*(p.RNodes'+p.HubRad).^2);
+param.blade_I0_2_2= sum(p.BElmntMass(:, 1).*(p.RNodes'+p.HubRad).^2);
+param.blade_I0_3_3= 0;
+param.blade_K0_1_1= p.KBF(1, 1, 1);
+param.blade_K0_1_2= 0;
+param.blade_K0_2_1= 0;
+param.blade_K0_2_2= p.KBE(1);
+param.blade_Me0_1_1= p.MBF(1, 1, 1);
+param.blade_Me0_1_2= 0;
+param.blade_Me0_2_1= 0;
+param.blade_Me0_2_2= p.MBE(1);
+param.blade_Oe1_1_1_1= -sum(squeeze(p.TwistedSF(1, 2, 1, 2:end-1, 1)).*squeeze(p.TwistedSF(1, 2, 1, 2:end-1, 1)).*p.BElmntMass(:, 1)) + p.KBFCent(1, 1, 1);
+param.blade_Oe1_1_1_2= -sum(squeeze(p.TwistedSF(1, 1, 1, 2:end-1, 1)).*squeeze(p.TwistedSF(1, 1, 1, 2:end-1, 1)).*p.BElmntMass(:, 1)) + p.KBFCent(1, 1, 1);
+param.blade_Oe1_1_1_4= 2*sum(squeeze(p.TwistedSF(1, 1, 1, 2:end-1, 1)).*squeeze(p.TwistedSF(1, 2, 1, 2:end-1, 1)).*p.BElmntMass(:, 1));
+param.blade_Oe1_1_2_1= -sum(squeeze(p.TwistedSF(1, 2, 1, 2:end-1, 1)).*squeeze(p.TwistedSF(1, 2, 3, 2:end-1, 1)).*p.BElmntMass(:, 1));
+param.blade_Oe1_1_2_2= -sum(squeeze(p.TwistedSF(1, 1, 1, 2:end-1, 1)).*squeeze(p.TwistedSF(1, 1, 3, 2:end-1, 1)).*p.BElmntMass(:, 1));
+param.blade_Oe1_1_2_4= sum(squeeze(p.TwistedSF(1, 1, 1, 2:end-1, 1)).*squeeze(p.TwistedSF(1, 2, 3, 2:end-1, 1)).*p.BElmntMass(:, 1))+sum(squeeze(p.TwistedSF(1, 2, 1, 2:end-1, 1)).*squeeze(p.TwistedSF(1, 1, 3, 2:end-1, 1)).*p.BElmntMass(:, 1));
+param.blade_Oe1_2_1_1= -sum(squeeze(p.TwistedSF(1, 2, 1, 2:end-1, 1)).*squeeze(p.TwistedSF(1, 2, 3, 2:end-1, 1)).*p.BElmntMass(:, 1));
+param.blade_Oe1_2_1_2= -sum(squeeze(p.TwistedSF(1, 1, 1, 2:end-1, 1)).*squeeze(p.TwistedSF(1, 1, 3, 2:end-1, 1)).*p.BElmntMass(:, 1));
+param.blade_Oe1_2_1_4= sum(squeeze(p.TwistedSF(1, 1, 1, 2:end-1, 1)).*squeeze(p.TwistedSF(1, 2, 3, 2:end-1, 1)).*p.BElmntMass(:, 1))+sum(squeeze(p.TwistedSF(1, 2, 1, 2:end-1, 1)).*squeeze(p.TwistedSF(1, 1, 3, 2:end-1, 1)).*p.BElmntMass(:, 1));
+param.blade_Oe1_2_2_1= -sum(squeeze(p.TwistedSF(1, 2, 3, 2:end-1, 1)).*squeeze(p.TwistedSF(1, 2, 3, 2:end-1, 1)).*p.BElmntMass(:, 1)) + p.KBECent(3);
+param.blade_Oe1_2_2_2= -sum(squeeze(p.TwistedSF(1, 1, 3, 2:end-1, 1)).*squeeze(p.TwistedSF(1, 1, 3, 2:end-1, 1)).*p.BElmntMass(:, 1)) + p.KBECent(3);
+param.blade_Oe1_2_2_4= 2*sum(squeeze(p.TwistedSF(1, 1, 3, 2:end-1, 1)).*squeeze(p.TwistedSF(1, 2, 3, 2:end-1, 1)).*p.BElmntMass(:, 1));
+param.blade_mass= p.BldMass(1);
+param.blade_md0_3_1= sum(p.BElmntMass(:, 1).*(p.RNodes'+p.HubRad));
+param.blade_md1_1_1_1= sum(squeeze(p.TwistedSF(1, 1, 1, 2:end-1, 1)).*p.BElmntMass(:, 1));
+param.blade_md1_1_2_1= sum(squeeze(p.TwistedSF(1, 2, 1, 2:end-1, 1)).*p.BElmntMass(:, 1));
+param.blade_md1_2_1_1= sum(squeeze(p.TwistedSF(1, 1, 3, 2:end-1, 1)).*p.BElmntMass(:, 1));
+param.blade_md1_2_2_1= sum(squeeze(p.TwistedSF(1, 2, 3, 2:end-1, 1)).*p.BElmntMass(:, 1));
+param.ModalShapes{1}= squeeze(p.TwistedSF(1, 1:2, 1, :, 1))';
+param.ModalShapes{2}= squeeze(p.TwistedSF(1, 1:2, 3, :, 1))';
+param.R= [0 p.RNodes p.BldFlexL]'+p.HubRad;
+
+% TODO: use this? p.AxRedBld % axial reduction
+
+param.tower_Ct1_1_1_3= p.KTFAGrav(1, 1);
+param.tower_Ct1_2_2_3= p.KTSSGrav(1, 1);
+param.tower_D0_1_1= p.CTFA(1, 1);
+param.tower_D0_2_2= p.CTSS(1, 1);
+param.tower_K0_1_1= p.KTFA(1, 1);
+param.tower_K0_1_2= 0;
+param.tower_K0_2_1= 0; 
+param.tower_K0_2_2= p.KTSS(1, 1);
+param.tower_Me0_1_1= p.MTFA(1, 1)-p.TwrTpMass;
+param.tower_Me0_2_2= p.MTSS(1, 1)-p.TwrTpMass;
+param.tower_frame_11_origin1_1_1_1= 1;
+param.tower_frame_11_origin1_2_2_1= 1;
+param.tower_frame_11_phi1_1_3_1= p.KTFAGravTT(1, 1);
+param.tower_frame_11_phi1_2_3_2= p.KTSSGravTT(1, 1);
+param.tower_frame_11_psi0_1_2= -p.TwrFASF(1, end, 2); 
+param.tower_frame_11_psi0_2_1= p.TwrSSSF(1, end, 2);
+param.tower_mass= p.TwrMass;
