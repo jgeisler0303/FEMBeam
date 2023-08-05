@@ -313,7 +313,7 @@ if exist('modes', 'var') && ~isempty(modes)
                     keep_mode= mode_pair>0;
                     mode_pair= abs(mode_pair);
                     
-                    if abs(EF(mode_pair(1))-EF(mode_pair(2)))/max(EF(mode_pair)) > 1e-5
+                    if abs(EF(mode_pair(1))-EF(mode_pair(2)))/max(EF) > eps^(2/3)
                         error('Mode pair (%d, %d) does not have identical eigenvalues', mode_pair(1), mode_pair(2));
                     end
                     V= orthogonalizeV(V, mode_pair, offsetX);
